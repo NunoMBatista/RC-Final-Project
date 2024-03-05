@@ -205,6 +205,15 @@
                 "x": -206,
                 "y": -262,
                 "z": 2
+            },
+            {
+                "drawing_id": "676884c2-7356-495f-830e-30578c0f2925",
+                "locked": false,
+                "rotation": 0,
+                "svg": "<svg width=\"131\" height=\"25\"><text font-family=\"TypeWriter\" font-size=\"10.0\" font-weight=\"bold\" fill=\"#000000\" fill-opacity=\"1.0\">193.137.100.127</text></svg>",
+                "x": -215,
+                "y": -212,
+                "z": 2
             }
         ],
         "links": [
@@ -379,8 +388,8 @@
                             "rotation": 0,
                             "style": "font-family: TypeWriter;font-size: 10.0;font-weight: bold;fill: #000000;fill-opacity: 1.0;",
                             "text": "f0/0",
-                            "x": 41,
-                            "y": -27
+                            "x": -19,
+                            "y": -31
                         },
                         "node_id": "300cbb90-2397-4ba4-b188-887776c19004",
                         "port_number": 0
@@ -821,7 +830,7 @@
                     "console_http_path": "/",
                     "console_http_port": 80,
                     "console_resolution": "1024x768",
-                    "container_id": "3a64b748cb2ead13396511e18fd694a3397865672a8b5974cd23488130675e3f",
+                    "container_id": "c02aa3e3b8fd6c97748b386c59733b04bf0a0229fe5a0b857f847d9454fb3482",
                     "environment": null,
                     "extra_hosts": null,
                     "extra_volumes": [
@@ -865,9 +874,9 @@
                     "console_http_path": "/",
                     "console_http_port": 80,
                     "console_resolution": "1024x768",
-                    "container_id": "7acebacd22ae9065b18f15618f8ab59a55abc500c05248d4641ec008b980d7bb",
-                    "environment": null,
-                    "extra_hosts": null,
+                    "container_id": "fd2fe663dcf77496a73527bd330625af8970d1e6f8248c3e3b8f19bb68ed12c1",
+                    "environment": "",
+                    "extra_hosts": "",
                     "extra_volumes": [
                         "/home"
                     ],
@@ -909,7 +918,7 @@
                     "console_http_path": "/",
                     "console_http_port": 80,
                     "console_resolution": "1024x768",
-                    "container_id": "03f8c40c2e144ea777ad0084c911a97c701d91d49fd2e6c655a22435c007f016",
+                    "container_id": "67ac26ab89cc0365de408f850badb0a9fed8f3503630764648d53682f6bb204c",
                     "environment": null,
                     "extra_hosts": null,
                     "extra_volumes": [
@@ -953,7 +962,7 @@
                     "console_http_path": "/",
                     "console_http_port": 80,
                     "console_resolution": "1024x768",
-                    "container_id": "067b119f5cd6ba9d51d1dc5e77e0cb8bd8365d9f6edf098c4ff3861adac042d7",
+                    "container_id": "1794473a067f49d3236785e3dcc4b29184f9bd47a4604c8cf3d500824f69abb3",
                     "environment": null,
                     "extra_hosts": null,
                     "extra_volumes": [

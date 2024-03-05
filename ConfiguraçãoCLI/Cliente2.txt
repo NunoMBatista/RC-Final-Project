@@ -1,0 +1,4 @@
+eth0 - 10.5.2.2 netmask 255.255.255.192 gateway 10.5.2.62
+
+ifconfig 10.5.2.2 netmask 255.255.255.192
+route 10.5.2.62

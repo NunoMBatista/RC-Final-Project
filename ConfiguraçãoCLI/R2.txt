@@ -1,0 +1,12 @@
+conf t
+interface FastEthernet0/0
+ip address 193.137.101.253 255.255.255.0
+no shutdown
+
+exit 
+interface FastEthernet0/1
+ip address 193.137.100.254 255.255.255.128
+no shutdown
+
+end
+copy running-config startup-config
