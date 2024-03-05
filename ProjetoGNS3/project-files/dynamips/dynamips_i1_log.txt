@@ -1,0 +1,28 @@
+Mar 05 15:03:51.707 HYPERVISOR: Release 0.2.23-amd64/Linux (tag 2023010200)
+Mar 05 15:03:51.707 HYPERVISOR: Started on IP = 127.0.0.1, TCP port = 33949.
+Mar 05 15:03:51.715 HYPERVISOR: exec_cmd: hypervisor version 
+Mar 05 15:03:51.715 HYPERVISOR: exec_cmd: hypervisor working_dir /home/nuno/Desktop/LEI/2ºAno/2ºSemestre/RC/Projeto/RC-Final-Project/ProjetoGNS3/project-files/dynamips 
+Mar 05 15:03:51.715 GENERAL: working_dir=/home/nuno/Desktop/LEI/2ºAno/2ºSemestre/RC/Projeto/RC-Final-Project/ProjetoGNS3/project-files/dynamips
+Mar 05 15:03:51.716 HYPERVISOR: exec_cmd: hypervisor working_dir /home/nuno/Desktop/LEI/2ºAno/2ºSemestre/RC/Projeto/RC-Final-Project/ProjetoGNS3/project-files/dynamips/300cbb90-2397-4ba4-b188-887776c19004 
+Mar 05 15:03:51.716 GENERAL: working_dir=/home/nuno/Desktop/LEI/2ºAno/2ºSemestre/RC/Projeto/RC-Final-Project/ProjetoGNS3/project-files/dynamips/300cbb90-2397-4ba4-b188-887776c19004
+Mar 05 15:03:51.716 HYPERVISOR: exec_cmd: vm create R1 1 c2691 
+Mar 05 15:03:51.716 VM: VM R1 created.
+Mar 05 15:03:51.716 HYPERVISOR: exec_cmd: vm set_con_tcp_port R1 5000 
+Mar 05 15:03:51.717 HYPERVISOR: exec_cmd: c2691 get_mac_addr R1 
+Mar 05 15:03:51.717 HYPERVISOR: exec_cmd: vm set_ios R1 /home/nuno/GNS3/images/IOS/c2691-adventerprisek9-mz.124-15.T14.image 
+Mar 05 15:03:51.718 HYPERVISOR: exec_cmd: vm get_status R1 
+Mar 05 15:03:51.718 HYPERVISOR: exec_cmd: vm set_idle_pc R1 0x60bcf9f8 
+Mar 05 15:03:51.719 HYPERVISOR: exec_cmd: vm set_ram R1 192 
+Mar 05 15:03:51.719 HYPERVISOR: exec_cmd: vm set_nvram R1 256 
+Mar 05 15:03:51.719 HYPERVISOR: exec_cmd: vm set_disk0 R1 0 
+Mar 05 15:03:51.720 HYPERVISOR: exec_cmd: vm get_status R1 
+Mar 05 15:03:51.720 HYPERVISOR: exec_cmd: vm slot_add_binding R1 1 0 NM-1FE-TX 
+Mar 05 15:03:51.720 HYPERVISOR: exec_cmd: vm get_status R1 
+Mar 05 15:03:51.720 HYPERVISOR: exec_cmd: vm slot_add_binding R1 0 16 WIC-1T 
+Mar 05 15:03:51.790 HYPERVISOR: exec_cmd: vm set_ios R1 /home/nuno/GNS3/images/IOS/c2691-adventerprisek9-mz.124-15.T14.image 
+Mar 05 15:04:30.117 HYPERVISOR: exec_cmd: vm set_ios R1 /home/nuno/GNS3/images/IOS/c2691-adventerprisek9-mz.124-15.T14.image 
+Mar 05 15:04:38.150 HYPERVISOR: exec_cmd: vm set_ios R1 /home/nuno/GNS3/images/IOS/c2691-adventerprisek9-mz.124-15.T14.image 
+Mar 05 15:04:48.919 HYPERVISOR: exec_cmd: vm set_ios R1 /home/nuno/GNS3/images/IOS/c2691-adventerprisek9-mz.124-15.T14.image 
+Mar 05 15:05:39.988 HYPERVISOR: exec_cmd: nio create_udp udp-12b36c5b-839c-4183-b582-6f66847bf7cd 10006 127.0.0.1 10007 
+Mar 05 15:05:40.203 HYPERVISOR: exec_cmd: vm slot_add_nio_binding R1 0 1 udp-12b36c5b-839c-4183-b582-6f66847bf7cd 
+Mar 05 15:05:40.204 HYPERVISOR: exec_cmd: vm get_status R1 
