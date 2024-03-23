@@ -1,6 +1,6 @@
 conf t
 interface FastEthernet0/0
-ip address 193.137.100.127 255.255.255.128
+ip address 193.137.100.126 255.255.255.128
 no shutdown
 
 exit 
