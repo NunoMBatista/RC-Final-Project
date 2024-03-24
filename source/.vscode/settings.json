@@ -57,6 +57,8 @@
   "C_Cpp_Runner.useLinkTimeOptimization": false,
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "files.associations": {
-    "admin_commands.h": "c"
+    "admin_commands.h": "c",
+    "socket.h": "c",
+    "in.h": "c"
   }
 }

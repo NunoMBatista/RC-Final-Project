@@ -1,10 +1,12 @@
 #ifndef ADMIN_COMMANDS_H
 #define ADMIN_COMMANDS_H
 
-void add_user(char *username, char *password, char *role);
-void remove_user(char *username);
-void list_users();
-void shutdown_server();
-void admin_login(char *username, char *password);
+#include <netinet/in.h>
+
+void add_user(char *username, char *password, char *role, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
+void remove_user(char *username, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
+void list_users(int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
+void shutdown_server(int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
+void admin_login(char *username, char *password, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
 
 #endif

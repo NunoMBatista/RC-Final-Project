@@ -12,6 +12,8 @@
 
 #define BUFLEN 1024
 
+pid_t main_process_id;
+
 int tcp_socket;
 int udp_socket;
 
@@ -20,14 +22,16 @@ void* handle_udp(void* udp_port_ptr);
 void* handle_tcp(void* tcp_port_ptr);
 void process_client(int client_socket);
 void handle_sigint(int sig);
+void interpret_client_command(char* command, int client_socket);
+void interpret_admin_command(char* command, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
 
 /* 
     The main function should create a socket that can receive both TCP and UDP messages.
-
     Execution syntax: ./class_server <PORTO_TURMAS> <PORTO_CONFIG> <configuration file>
 */
 int main(int argc, char *argv[]){
     signal(SIGINT, handle_sigint);
+    main_process_id = getpid();
 
     // Check if the number of arguments is correct
     if(argc != 4){
@@ -93,7 +97,7 @@ void* handle_tcp(void* tcp_port_ptr){
 
     // Set the server address family to IPv4
     server_address.sin_family = AF_INET;
-    // Set the server port to the port passed as an argument
+    // Set the server port's to the port passed as argument
     server_address.sin_port = htons(tcp_port); // htons() converts host's byte order (unspecified) to network's byte order (big-endian)
     // Set the server address to any available address in the system (INADDR_ANY)
     server_address.sin_addr.s_addr = htonl(INADDR_ANY); // htonl() is the same as htons() but for 32-bit values
@@ -155,20 +159,36 @@ void* handle_tcp(void* tcp_port_ptr){
 }
 
 void process_client(int client_socket){
+    write(client_socket, "Welcome to the server\n", 23); // Send a welcome message to the client
+
     int bytes_received = 0;
     char buffer[BUFLEN];
-    // Clear the buffer before receiving a new message
-    memset(buffer, 0, BUFLEN);
+    char response[BUFLEN + 30]; // + 30 to account for the "Message received - " prefix
 
+    // Clear the buffer and response before receiving a new message
+    memset(buffer, 0, BUFLEN);
+    memset(response, 0, BUFLEN);
+
+    // Read until the client disconnects
     while((bytes_received = read(client_socket, buffer, BUFLEN - 1)) > 0){
         buffer[bytes_received - 1] = '\0'; // Add null terminator to the end of the message
         if(bytes_received == -1){
             perror("Error reading message");
             break;
         }
+
         printf("Message received - %s\n", buffer);
-        // Clear the buffer before receiving a new message
+
+        // Send a response to the client
+        printf(response, "Message received - %s\n", buffer);
+        //write(client_socket, response, strlen(response));
+
+        // Interpret the command
+        interpret_client_command(buffer, client_socket);
+                
+        // Clear the buffer and response before receiving a new message
         memset(buffer, 0, BUFLEN);
+        memset(response, 0, BUFLEN);
     }
     if(bytes_received == 0){
         printf("Client disconnected\n");
@@ -235,7 +255,11 @@ void* handle_udp(void *udp_port_ptr){
         }
         
         printf("Message from %s:%d - %s\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port), buffer); 
+        
+        //sendto(udp_socket, "Message received\n", 17, 0, (struct sockaddr*) &client_address, client_address_len); // Send a message to the client to confirm the message was received
 
+        // Interpret the command
+        interpret_admin_command(buffer, udp_socket, client_address, client_address_len);
         // devolver ao cliente udp uma mensagem de log in, caso seja admin, deve poder aceder ao resto das funções (talvez isto tenha de ser feito fora do loop)
     }
 
@@ -245,8 +269,207 @@ void* handle_udp(void *udp_port_ptr){
 }
 
 void handle_sigint(int sig){
-    close(tcp_socket);
-    close(udp_socket);
-    printf("SHUTTING DOWN SERVER\n");
-    exit(0);
+    if(sig == SIGINT){
+        close(tcp_socket);
+        close(udp_socket);
+
+        // If the process is the main process, print a message before exiting
+        if(getpid() == main_process_id){
+            printf("\nSHUTTING DOWN SERVER\n");
+        }
+
+        exit(0);
+    }
+}
+
+void interpret_client_command(char* command, int client_socket){
+    char* token = strtok(command, " ");
+    if(token == NULL){
+        write(client_socket, "<Invalid command>\n", 18);
+        return;
+    }
+    
+    if(strcmp("LOGIN", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: LOGIN <username> <password>\n";
+        // Check if the command has the correct number of arguments
+        char* username = strtok(NULL, " ");
+        char* password = strtok(NULL, " ");
+        if(username == NULL || password == NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        client_login(username, password, client_socket);
+        return;
+    }
+
+    if(strcmp("LIST_CLASSES", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: LIST_CLASSES\n";
+        // Check if the command has the correct number of arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        list_classes(client_socket);
+        return;
+    }
+
+    if(strcmp("LIST_SUBSCRIBED", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: LIST_SUBSCRIBED\n";
+        // Check if the command has the correct number of arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        list_subscribed(client_socket);
+        return;
+    }
+
+    if(strcmp("SUBSCRIBE", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: SUBSCRIBE <class_name>\n";
+        // Check if the command has the correct number of arguments
+        char* class_name = strtok(NULL, " ");
+        if(class_name == NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        subscribe_class(class_name, client_socket);
+        return;
+    }
+
+    if(strcmp("CREATE_CLASS", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: CREATE_CLASS <class_name> <capacity>\n";
+        // Check if the command has the correct number of arguments
+        char* class_name = strtok(NULL, " ");
+        char* capacity_str = strtok(NULL, " ");
+        if(class_name == NULL || capacity_str == NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        int capacity = atoi(capacity_str);
+        create_class(class_name, capacity, client_socket);
+        return;
+    }
+
+    if(strcmp("SEND", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: SEND <class_name> <message>\n";
+        // Check if the command has the correct number of arguments
+        char* class_name = strtok(NULL, " ");
+        char* message = strtok(NULL, "");
+        if(class_name == NULL || message == NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message));
+            return;
+        }
+        send_message(class_name, message, client_socket);
+        return;
+    }
+    
+    write(client_socket, "<Invalid command>\n", 18);
+    
+}
+
+void interpret_admin_command(char* command, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
+    printf("Command: %s\n", command);   
+    char *token = strtok(command, " ");
+    if(token == NULL){
+        sendto(client_socket, "<Invalid command>\n", 20, 0, (struct sockaddr*) &client_address, client_address_len);
+        return;
+    }
+
+    if(strcmp("ADD_USER", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: ADD_USER <username> <password> <role>\n";
+        // Check if the command has the correct number of arguments
+        char* username = strtok(NULL, " ");
+        char* password = strtok(NULL, " ");
+        char* role = strtok(NULL, " ");
+        if(username == NULL || password == NULL || role == NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        add_user(username, password, role, client_socket, client_address, client_address_len);
+        return;
+    }
+
+    if(strcmp("DEL", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: DEL <username>\n";
+        // Check if the command has the correct number of arguments
+        char* username = strtok(NULL, " ");
+        if(username == NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        remove_user(username, client_socket, client_address, client_address_len);
+        return;
+    }
+
+    if(strcmp("LIST", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: LIST\n";
+        // Check if the command has the correct number of arguments
+        if(strtok(NULL, " ") != NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        list_users(client_socket, client_address, client_address_len);
+        return;
+    }
+
+    if(strcmp("QUIT_SERVER", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: QUIT_SERVER\n";
+        // Check if the command has the correct number of arguments
+        if(strtok(NULL, " ") != NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        shutdown_server(client_socket, client_address, client_address_len);
+        return;
+    }
+
+    if(strcmp("LOGIN", token) == 0){
+        char *error_message = "<Invalid command>\n Correct Usage: LOGIN <username> <password>\n";
+        // Check if the command has the correct number of arguments
+        char* username = strtok(NULL, " ");
+        char* password = strtok(NULL, " ");
+        if(username == NULL || password == NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        admin_login(username, password, client_socket, client_address, client_address_len);
+        return;
+    }
+
+    sendto(client_socket, "<Invalid command>", 18, 0, (struct sockaddr*) &client_address, client_address_len);
 }
