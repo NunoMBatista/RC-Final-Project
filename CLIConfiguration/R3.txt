@@ -18,6 +18,10 @@ exit
 
 interface FastEthernet0/0
 ip nat outside
+exit
+
+ip route 193.137.100.128 255.255.255.128 193.137.101.253
+ip route 193.137.100.0 255.255.255.128 193.137.101.254
 
 end
 copy running-config startup-config

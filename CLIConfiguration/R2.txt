@@ -2,22 +2,15 @@ conf t
 interface FastEthernet0/0
 ip address 193.137.101.253 255.255.255.0
 no shutdown
-
 exit 
+
 interface FastEthernet0/1
 ip address 193.137.100.254 255.255.255.128
 no shutdown
 exit
- 
-access-list 1 permit 193.137.100.128 0.0.0.127
-ip nat inside source list 1 interface FastEthernet0/1
 
-interface FastEthernet0/1
-ip nat inside
-exit
-
-interface FastEthernet0/0
-ip nat outside
+ip route 193.137.100.0 255.255.255.128 193.137.101.254
+ip route 10.5.2.0 255.255.255.192 193.137.101.252
 
 end
 copy running-config startup-config
