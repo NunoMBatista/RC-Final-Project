@@ -3,7 +3,7 @@ interface FastEthernet0/0
 ip address 193.137.101.252 255.255.255.0
 no shutdown
 exit
- 
+
 interface FastEthernet0/1
 ip address 10.5.2.62 255.255.255.192
 no shutdown
