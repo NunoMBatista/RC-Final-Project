@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -pthread
 
-all: class_server class_client
+all: class_server class_client class_admin
 
 class_server: class_server.o admin_commands.o client_commands.o
 	$(CC) $(CFLAGS) -o class_server class_server.o admin_commands.o client_commands.o
@@ -21,5 +21,11 @@ class_client: class_client.o
 class_client.o: class_client.c
 	$(CC) $(CFLAGS) -c class_client.c
 
+class_admin: class_admin.o
+	$(CC) $(CFLAGS) -o class_admin class_admin.o
+
+class_admin.o: class_admin.c
+	$(CC) $(CFLAGS) -c class_admin.c
+
 clean:
-	rm -f *.o class_server class_client
+	rm -f *.o class_server class_client class_admin
