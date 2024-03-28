@@ -430,7 +430,7 @@ void interpret_client_command(char* command, int client_socket, User **user_info
         return;
     }
     
-    write(client_socket, "<Invalid command>\n", 18);
+    write(client_socket, "<Invalid command>\n", 19);
 }
 
 void interpret_admin_command(char* command, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
@@ -528,7 +528,6 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
         shutdown_server(client_socket, client_address, client_address_len);
         return;
     }
-
 
     sendto(client_socket, "<Invalid command>\n", 19, 0, (struct sockaddr*) &client_address, client_address_len);
 }

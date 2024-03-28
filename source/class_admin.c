@@ -63,7 +63,7 @@ int main(int argc, char *argv[]){
 
     int bytes_received;
     socklen_t server_address_length = sizeof(server_address);
-
+    
     while(1){
         // Clear the message_received and message_sent buffers
         memset(message_received, 0, BUFLEN);

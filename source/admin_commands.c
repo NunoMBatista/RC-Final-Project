@@ -27,6 +27,7 @@ int admin_login(char *username, char *password, int client_socket, struct sockad
             return 0;
         }
     }
+
     sprintf(response, "REJECTED, USER %s NOT FOUND\n", username);
     sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
     return 0; 
