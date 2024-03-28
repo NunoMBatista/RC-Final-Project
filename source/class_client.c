@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <signal.h>
-#define BUFLEN 1024
+#include "global.h"
 
 // Socket file descriptor
 int client_socket;
@@ -82,9 +82,10 @@ int main(int argc, char *argv[]){
         }
         message_received[bytes_received - 1] = '\0';
 
-        printf("Received message from server - %s\n", message_received);
+        printf("%s\n", message_received);
 
         // Get user input and send it to the server
+        printf("$ ");
         fgets(message_sent, BUFLEN - 1, stdin);
         message_sent[strlen(message_sent) - 1] = '\0';
         // + 1 to include the null character
