@@ -10,7 +10,6 @@ no shutdown
 exit
 
 ip route 193.137.100.128 255.255.255.128 193.137.101.253
-ip route 10.5.2.0 255.255.255.192 193.137.101.252
 
 end
 copy running-config startup-config
