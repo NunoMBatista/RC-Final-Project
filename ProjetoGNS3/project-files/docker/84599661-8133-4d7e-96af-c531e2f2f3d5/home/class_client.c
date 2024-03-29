@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <signal.h>
-#define BUFLEN 1024
+#include "global.h"
 
 // Socket file descriptor
 int client_socket;
@@ -69,6 +69,8 @@ int main(int argc, char *argv[]){
 
     int bytes_received;
    
+    char *console_string = "> "; // Character to be displayed in the console
+    int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
     while(1){
         // Clear the message_received and message_sent buffers
         memset(message_received, 0, BUFLEN);
@@ -76,15 +78,30 @@ int main(int argc, char *argv[]){
 
         // Read the message from the server, BUFLEN - 1 to leave space for the null character
         bytes_received = read(client_socket, message_received, BUFLEN - 1);
+
+        // Check if the user has logged in and change the console string accordingly
+        if(logged_in == 0){
+            if(strcmp(message_received, "OK\nLOGGED IN AS STUDENT\n") == 0){
+                logged_in = 1;
+                console_string = "(student) $ ";
+            }
+            else if(strcmp(message_received, "OK\nLOGGED IN AS PROFESSOR\n") == 0){
+                logged_in = 2;
+                console_string = "(professor) $ ";
+            }
+        }
+
         if(bytes_received == 0){
             printf("The server has shut down\n");
             break;
         }
         message_received[bytes_received - 1] = '\0';
 
-        printf("Received message from server - %s\n", message_received);
+        printf("%s\n", message_received);
 
         // Get user input and send it to the server
+        printf("%s", console_string);
+        
         fgets(message_sent, BUFLEN - 1, stdin);
         message_sent[strlen(message_sent) - 1] = '\0';
         // + 1 to include the null character

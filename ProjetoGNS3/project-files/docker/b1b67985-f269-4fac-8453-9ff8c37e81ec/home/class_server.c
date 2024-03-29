@@ -471,5 +471,5 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
         return;
     }
 
-    sendto(client_socket, "<Invalid command>", 18, 0, (struct sockaddr*) &client_address, client_address_len);
+    sendto(client_socket, "<Invalid command>\n", 19, 0, (struct sockaddr*) &client_address, client_address_len);
 }

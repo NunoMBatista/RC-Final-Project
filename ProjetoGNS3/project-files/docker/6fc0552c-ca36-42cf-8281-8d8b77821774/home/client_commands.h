@@ -1,7 +1,8 @@
 #ifndef CLIENT_COMMANDS_H
 #define CLIENT_COMMANDS_H
+#include "global.h"
 
-void client_login(char *username, char *password, int client_socket);
+User* client_login(char *username, char *password, int client_socket);
 void list_classes(int client_socket);
 
 // Student only

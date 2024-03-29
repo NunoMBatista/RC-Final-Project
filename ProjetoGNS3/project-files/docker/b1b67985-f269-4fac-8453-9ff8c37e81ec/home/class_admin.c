@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <signal.h>
-#include "global.h"
+#define BUFLEN 1024
 
 // Socket file descriptor
 int client_socket;
@@ -53,14 +53,8 @@ int main(int argc, char *argv[]){
     server_address.sin_port = htons((short) PORTO_TURMAS);
     
     // Create a socket and store its file descriptor in client_socket
-    if((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+    if((client_socket = socket(AF_INET, SOCK_DGRAM, 0)) == -1){
         printf("<Socket creation failed>\n");
-        return 1;
-    }
-
-    // Connect to the server whose address is in server_address
-    if(connect(client_socket, (struct sockaddr*) &server_address, sizeof(server_address)) < 0){
-        printf("<Connection failed>\n");
         return 1;
     }
 
@@ -68,44 +62,28 @@ int main(int argc, char *argv[]){
     char message_received[BUFLEN];
 
     int bytes_received;
+    socklen_t server_address_length = sizeof(server_address); // Change this line
    
-    char *console_string = "> "; // Character to be displayed in the console
-    int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
     while(1){
         // Clear the message_received and message_sent buffers
         memset(message_received, 0, BUFLEN);
         memset(message_sent, 0, BUFLEN);
 
+        // Get user input and send it to the server
+        fgets(message_sent, BUFLEN - 1, stdin);
+        message_sent[strlen(message_sent) - 1] = '\0';
+        // + 1 to include the null character
+        sendto(client_socket, message_sent, strlen(message_sent) + 1, 0, (struct sockaddr*) &server_address, server_address_length);
+
         // Read the message from the server, BUFLEN - 1 to leave space for the null character
-        bytes_received = read(client_socket, message_received, BUFLEN - 1);
-
-        // Check if the user has logged in and change the console string accordingly
-        if(logged_in == 0){
-            if(strcmp(message_received, "OK\nLOGGED IN AS STUDENT\n") == 0){
-                logged_in = 1;
-                console_string = "(student) $ ";
-            }
-            else if(strcmp(message_received, "OK\nLOGGED IN AS PROFESSOR\n") == 0){
-                logged_in = 2;
-                console_string = "(professor) $ ";
-            }
-        }
-
+        bytes_received = recvfrom(client_socket, message_received, BUFLEN - 1, 0, (struct sockaddr*) &server_address, &server_address_length);
         if(bytes_received == 0){
             printf("The server has shut down\n");
             break;
         }
         message_received[bytes_received - 1] = '\0';
 
-        printf("%s\n", message_received);
-
-        // Get user input and send it to the server
-        printf("%s", console_string);
-        
-        fgets(message_sent, BUFLEN - 1, stdin);
-        message_sent[strlen(message_sent) - 1] = '\0';
-        // + 1 to include the null character
-        write(client_socket, message_sent, strlen(message_sent) + 1);
+        printf("Received message from server - %s\n", message_received);
     }
 
     close(client_socket);
