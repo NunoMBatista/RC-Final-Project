@@ -31,7 +31,7 @@ User* client_login(char *username, char *password, int client_socket){
     }
     else if(strcmp(user->role, "administrador") == 0){
         // Only students and professors can login using the TCP client
-        sprintf(response, "<This user is an administrator>\nUse and UDP client to access the admin commands\n");
+        sprintf(response, "<This user is an administrator>\nUse an UDP client to access the admin commands\n");
         write(client_socket, response, strlen(response) + 1);
 
         // Return an empty string to indicate that a role has not been assigned

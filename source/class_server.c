@@ -349,7 +349,7 @@ void interpret_client_command(char* command, int client_socket, User **user_info
 
     if(strcmp("LIST_SUBSCRIBED", token) == 0){
         if(strcmp((*user_info)->role, "student") != 0){
-            write(client_socket, "<Unauthorized command>\nYou need to be a student to list subscribed classes\n", 74);
+            write(client_socket, "<Unauthorized command>\nYou need to be a student to list subscribed classes\n", 76);
             return;
         }
         char *error_message = "<Invalid command>\n Correct Usage: LIST_SUBSCRIBED\n";
@@ -364,7 +364,7 @@ void interpret_client_command(char* command, int client_socket, User **user_info
 
     if(strcmp("SUBSCRIBE", token) == 0){
         if(strcmp((*user_info)->role, "student") != 0){
-            write(client_socket, "<Unauthorized command>\nYou need to be a student to subscribe to a class\n", 70);
+            write(client_socket, "<Unauthorized command>\nYou need to be a student to subscribe to a class\n", 73);
             return;
         }
 

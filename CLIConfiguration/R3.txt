@@ -10,7 +10,7 @@ no shutdown
 exit
 
 access-list 1 permit 10.5.2.0 0.0.0.63
-ip nat inside source list 1 interface FastEthernet0/1 overload
+ip nat inside source list 1 interface FastEthernet0/0 overload
 
 interface FastEthernet0/1
 ip nat inside
