@@ -309,17 +309,17 @@ void interpret_client_command(char* command, int client_socket, User **user_info
             return;
         }
 
-        char *error_message = "<Invalid command>\n Correct Usage: LOGIN <username> <password>\n\n";
+        char *error_message = "<Invalid command>\n Correct Usage: LOGIN <username> <password>\n";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
         if(username == NULL || password == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         
@@ -337,10 +337,10 @@ void interpret_client_command(char* command, int client_socket, User **user_info
     }
 
     if(strcmp("LIST_CLASSES", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: LIST_CLASSES\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: LIST_CLASSES\n";
         // Check if the command has the correct number of arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         list_classes(client_socket);
@@ -348,14 +348,14 @@ void interpret_client_command(char* command, int client_socket, User **user_info
     }
 
     if(strcmp("LIST_SUBSCRIBED", token) == 0){
-        if(strcmp((*user_info)->role, "student") != 0){
+        if(strcmp((*user_info)->role, "aluno") != 0){
             write(client_socket, "<Unauthorized command>\nYou need to be a student to list subscribed classes\n", 76);
             return;
         }
-        char *error_message = "<Invalid command>\n Correct Usage: LIST_SUBSCRIBED\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: LIST_SUBSCRIBED\n";
         // Check if the command has the correct number of arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         list_subscribed(client_socket);
@@ -363,21 +363,21 @@ void interpret_client_command(char* command, int client_socket, User **user_info
     }
 
     if(strcmp("SUBSCRIBE", token) == 0){
-        if(strcmp((*user_info)->role, "student") != 0){
+        if(strcmp((*user_info)->role, "aluno") != 0){
             write(client_socket, "<Unauthorized command>\nYou need to be a student to subscribe to a class\n", 73);
             return;
         }
 
-        char *error_message = "<Invalid command>\n Correct Usage: SUBSCRIBE <class_name>\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: SUBSCRIBE <class_name>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
         if(class_name == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         subscribe_class(class_name, client_socket);
@@ -390,12 +390,12 @@ void interpret_client_command(char* command, int client_socket, User **user_info
             return;
         }
 
-        char *error_message = "<Invalid command>\n Correct Usage: CREATE_CLASS <class_name> <capacity>\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: CREATE_CLASS <class_name> <capacity>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
         char* capacity_str = strtok(NULL, " ");
         if(class_name == NULL || capacity_str == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
@@ -413,17 +413,17 @@ void interpret_client_command(char* command, int client_socket, User **user_info
             write(client_socket, "<Unauthorized command>\nYou need to be a professor to send a message to a class\n", 80);
             return;
         }
-        char *error_message = "<Invalid command>\n Correct Usage: SEND <class_name> <message>\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: SEND <class_name> <message>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
         char* message = strtok(NULL, "");
         if(class_name == NULL || message == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         send_message(class_name, message, client_socket);
