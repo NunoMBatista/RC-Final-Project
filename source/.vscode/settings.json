@@ -60,6 +60,9 @@
     "admin_commands.h": "c",
     "socket.h": "c",
     "in.h": "c",
-    "client_commands.h": "c"
+    "client_commands.h": "c",
+    "string.h": "c",
+    "pthread.h": "c",
+    "semaphore.h": "c"
   }
 }

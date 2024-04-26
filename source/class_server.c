@@ -1,20 +1,37 @@
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <string.h>
-#include <sys/socket.h> // socket(), bind(), recvfrom()
-#include <unistd.h> // close()
-#include <arpa/inet.h> // sockaddr_in, htons(), htonl(), inet_ntoa()
+#include <sys/socket.h> 
+#include <unistd.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <fcntl.h> 
+#include <semaphore.h>
 
 #include "admin_commands.h"
 #include "client_commands.h"
 #include "global.h"
 
+unsigned int last_assigned_multicast_port = FIRST_MULTICAST_PORT;
+unsigned int last_assigned_multicast_address = BASE_MULTICAST_ADDRESS;
+
 User registered_users[MAX_REGISTERED_USERS];
+
 int registered_users_count = 0; 
 int admin_logged_in = 0; // Boolean to check if an admin is logged in
 pid_t main_process_id;
+
+Classes *classes_shm;
+int classes_shm_id;
+
+sem_t *classes_sem;
+
+ClassInfo client_subscribed_classes[MAX_SUBSCRIBED_CLASSES];
+int client_subscribed_classes_count = 0;
 
 int tcp_socket;
 int udp_socket;
@@ -46,8 +63,8 @@ int main(int argc, char *argv[]){
     int PORTO_TURMAS = atoi(argv[1]);
     int PORTO_CONFIG = atoi(argv[2]);
     // Ports below 1024 are reserved for system services and ports above 65535 are invalid
-    if(PORTO_TURMAS < 1024 || PORTO_TURMAS > 65535 || PORTO_CONFIG < 1024 || PORTO_CONFIG > 65535){
-        printf("<Invalid port>\n[Port must be integers between 1024 and 65535]\n");
+    if(PORTO_TURMAS < 1024 || PORTO_TURMAS >= FIRST_MULTICAST_PORT || PORTO_CONFIG < 1024 || PORTO_CONFIG >= FIRST_MULTICAST_PORT){
+        printf("<Invalid port>\n[Port must be integers between 1024 and %d]\n", FIRST_MULTICAST_PORT);
         return 1;
     }
 
@@ -66,6 +83,29 @@ int main(int argc, char *argv[]){
     fclose(file);
 
     registered_users_count = read_configuration_file(argv[3]);
+
+    // Create shared memory for classes
+    classes_shm_id = shmget(IPC_PRIVATE, sizeof(Classes), IPC_CREAT | 0666);
+    if(classes_shm_id == -1){
+        perror("Error creating shared memory");
+        exit(1);
+    }
+    if((classes_shm = (Classes*) shmat(classes_shm_id, NULL, 0)) == (void*) -1){
+        perror("Error attaching shared memory");
+        exit(1);
+    }
+
+    classes_shm->classes_count = 0; // Initialize the number of classes
+
+    // Initialize the semaphore
+    sem_close(classes_sem);
+    sem_unlink(SEMAPHORE_NAME);
+    classes_sem = sem_open(SEMAPHORE_NAME, O_CREAT, 0666, 1);
+    if(classes_sem == SEM_FAILED){
+        perror("Error creating semaphore");
+        exit(1);
+    }
+
 
     pthread_t udp_thread, tcp_thread;
     // Start listening for UDP messages
@@ -165,6 +205,10 @@ void* handle_tcp(void* tcp_port_ptr){
 }
 
 void process_client(int client_socket){
+    #ifdef DEBUG
+    printf("DEBUG# Client connected\n");
+    #endif
+
     write(client_socket, "-- Welcome to the class server, login as a student or a professor before using the commands --\n", 96);
 
     //char user_role[15]; // Store the user's role
@@ -188,11 +232,12 @@ void process_client(int client_socket){
             break;
         }
 
-        printf("Message received - %s\n", buffer);
+        #ifdef DEBUG
+        printf("DEBUG# Client message received - %s\n", buffer);
+        #endif
 
         // Interpret the command
         interpret_client_command(buffer, client_socket, &user_info);
-        printf("user role after int: %s\n", user_info->role);
         
         // Clear the buffer and response before receiving a new message
         memset(buffer, 0, BUFLEN);
@@ -266,8 +311,10 @@ void* handle_udp(void *udp_port_ptr){
             break;
         }
 
-        printf("Message from %s:%d - %s\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port), buffer); 
-        
+        #ifdef DEBUG
+        printf("DEBUG# Admin message from %s:%d - %s\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port), buffer); 
+        #endif
+
         // sendto(udp_socket, "Message received\n", 17, 0, (struct sockaddr*) &client_address, client_address_len); // Send a message to the client to confirm the message was received
 
         // Interpret the command
@@ -284,6 +331,22 @@ void handle_sigint(int sig){
     if(sig == SIGINT){
         close(tcp_socket);
         close(udp_socket);
+
+        // Detach and remove the shared memory
+        if(shmdt(classes_shm) == -1){
+            perror("Error detaching shared memory");
+        }
+        if(shmctl(classes_shm_id, IPC_RMID, NULL) == -1){
+            perror("Error removing shared memory");
+        }
+
+        // Close and unlink the semaphore
+        if(sem_close(classes_sem) == -1){
+            perror("Error closing semaphore");
+        }
+        if(sem_unlink(SEMAPHORE_NAME) == -1){
+            perror("Error unlinking semaphore");
+        }
 
         // If the process is the main process, print a message before exiting
         if(getpid() == main_process_id){
@@ -363,6 +426,11 @@ void interpret_client_command(char* command, int client_socket, User **user_info
     }
 
     if(strcmp("SUBSCRIBE", token) == 0){
+        #ifdef DEBUG
+        printf("DEBUG# Received subscribe command\n");
+        printf("DEBUG# Checking parameters...\n");
+        #endif
+
         if(strcmp((*user_info)->role, "aluno") != 0){
             write(client_socket, "<Unauthorized command>\nYou need to be a student to subscribe to a class\n", 73);
             return;
@@ -380,7 +448,7 @@ void interpret_client_command(char* command, int client_socket, User **user_info
             write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
-        subscribe_class(class_name, client_socket);
+        subscribe_class(class_name, client_socket, *user_info);
         return;
     }
 
@@ -390,6 +458,11 @@ void interpret_client_command(char* command, int client_socket, User **user_info
             return;
         }
 
+        #ifdef DEBUG
+        printf("DEBUG# Received create class command\n");
+        printf("DEBUG# Checking parameters...\n");
+        #endif
+
         char *error_message = "<Invalid command>\nCorrect Usage: CREATE_CLASS <class_name> <capacity>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
@@ -398,12 +471,39 @@ void interpret_client_command(char* command, int client_socket, User **user_info
             write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
-        // Check if there are no more arguments
-        if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+
+        // Check parameter length
+        if(strlen(class_name) > MAX_CLASS_NAME_LEN || strlen(capacity_str) > MAX_CLASS_CAPACITY){
+            write(client_socket, "<Invalid command>\nClass name must have less than 50 characters and capacity must be an integer\n", 90);
             return;
         }
+
+        for(int i = 0; i < (int)strlen(capacity_str); i++){
+            if(capacity_str[i] < '0' || capacity_str[i] > '9'){
+                write(client_socket, error_message, strlen(error_message) + 1);
+                return;
+            }
+        }
+
         int capacity = atoi(capacity_str);
+        // Check capacity validity
+        if(capacity < 1 || capacity > MAX_CLASS_CAPACITY){
+            write(client_socket, "<Invalid command>\nCapacity must be an integer between 1 and 100\n", 65);
+            return;
+        }
+
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            write(client_socket, error_message, strlen(error_message) + 1);
+            return;
+        }
+
+
+        #ifdef DEBUG
+        printf("DEBUG# Parameters are valid\n");
+        printf("DEBUG# Creating class...\n");
+        #endif        
+
         create_class(class_name, capacity, client_socket);
         return;
     }
@@ -434,7 +534,10 @@ void interpret_client_command(char* command, int client_socket, User **user_info
 }
 
 void interpret_admin_command(char* command, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
-    printf("Command: %s\n", command);   
+    #ifdef DEBUG
+    printf("DEBUG# Received admin command: %s\n", command);
+    #endif   
+
     char *token = strtok(command, " ");
     if(token == NULL){
         sendto(client_socket, "<Invalid command>\n", 20, 0, (struct sockaddr*) &client_address, client_address_len);
@@ -477,10 +580,30 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
         char* role = strtok(NULL, " ");
+
+
         if(username == NULL || password == NULL || role == NULL){
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
+        printf("fase 1\n");
+
+        // Check parameter length
+        if(strlen(username) > MAX_USERNAME_LEN || strlen(password) > MAX_PASSWORD_LEN || strlen(role) > MAX_ROLE_LEN){
+            sendto(client_socket, "<Invalid command>\nUsername, password and role must have less than 50 characters\n\n", 82, 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+
+        printf("fase 2\n");
+        
+        // Check role validity
+        if(strcmp(role, "administrador") != 0 && strcmp(role, "aluno") != 0 && strcmp(role, "professor") != 0){
+            sendto(client_socket, "<Invalid command>\nRole must be 'administrador', 'aluno' or 'professor'\n\n", 73, 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+
+        printf("fase 3\n");
+
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
@@ -514,6 +637,7 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
+        
         list_users(client_socket, client_address, client_address_len);
         return;
     }
@@ -525,7 +649,11 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
-        shutdown_server(client_socket, client_address, client_address_len);
+
+        sendto(client_socket, "Server shutting down...\n", 25, 0, (struct sockaddr*) &client_address, client_address_len);
+
+        handle_sigint(SIGINT); 
+        //shutdown_server(client_socket, client_address, client_address_len);
         return;
     }
 

@@ -1,16 +1,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <sys/types.h>
 #include <signal.h>
+#include <pthread.h>
+#include <netinet/in.h>
+
 #include "global.h"
 
 // Socket file descriptor
+int current_subscribed_classes = 0;
 int client_socket;
+
+// Flag to check if the user is logged in
+int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
+
+char multicast_ips[MAX_SUBSCRIBED_CLASSES][16];
+unsigned int last_assigned_port = FIRST_MULTICAST_PORT;
+
+int join_multicast_group(char *multicast_address);
+void *receive_multicast_messages(void *multicast_address);
 
 void handle_sigint(int sig);
 
@@ -22,6 +35,8 @@ int main(int argc, char *argv[]){
     struct sockaddr_in server_address;
     // Host entry structure containing server's name and IP address
     struct hostent *hostPtr;
+
+    pthread_t class_threads[MAX_SUBSCRIBED_CLASSES];
 
     // Check if the number of arguments is correct
     if(argc != 3){
@@ -70,7 +85,6 @@ int main(int argc, char *argv[]){
     int bytes_received;
    
     char *console_string = "> "; // Character to be displayed in the console
-    int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
     while(1){
         // Clear the message_received and message_sent buffers
         memset(message_received, 0, BUFLEN);
@@ -99,6 +113,20 @@ int main(int argc, char *argv[]){
 
         printf("%s\n", message_received);
 
+        // Check if the message is a multicast message
+        char *token = strtok(message_received, " ");
+        if(strcmp(token, "ACCEPTED") == 0){
+            // Get the multicast address
+            token = strtok(NULL, "<");
+            token[strlen(token) - 2] = '\0'; // -2 to account the newline and the '<'
+            // Join the multicast group
+            int multicast_socket = join_multicast_group(token);
+            printf("-> Joined multicast group %s <-\n\n", token);
+
+            // Create a thread to receive multicast messages
+            pthread_create(&class_threads[current_subscribed_classes - 1], NULL, receive_multicast_messages, (void*) &multicast_socket);
+        }
+
         // Get user input and send it to the server
         printf("%s", console_string);
         
@@ -110,6 +138,72 @@ int main(int argc, char *argv[]){
 
     close(client_socket);
     return 0; 
+}
+
+int join_multicast_group(char *multicast_address){
+    // Create a socket for the multicast group
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(sockfd < 0){
+        printf("<Socket creation failed>\n");
+        exit(1);
+    }
+
+    // Set the multicast_address_struct to the multicast address and port
+    struct sockaddr_in multicast_address_struct;
+    memset(&multicast_address_struct, 0, sizeof(multicast_address_struct));
+    multicast_address_struct.sin_family = AF_INET; // IPv4
+    multicast_address_struct.sin_port = htons(last_assigned_port); // Port
+    multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
+    last_assigned_port++; // Increment last_assigned_port for the next multicast group
+
+    // Bind the socket to the multicast address
+    if(bind(sockfd, (struct sockaddr*)&multicast_address_struct, sizeof(multicast_address_struct)) < 0){
+        printf("<Bind failed>\n");
+        close(sockfd);
+        exit(1);
+    }
+
+    // Set the multicast group to join
+    struct ip_mreq multicast_group;
+    multicast_group.imr_multiaddr.s_addr = inet_addr(multicast_address);
+    multicast_group.imr_interface.s_addr = htonl(INADDR_ANY);
+
+    // Join the multicast group
+    if(setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_group, sizeof(multicast_group)) < 0){
+        printf("<Join failed>\n");
+        close(sockfd);
+        exit(1);
+    } 
+
+    //multicast_ips[current_subscribed_classes] = multicast_address;
+    strcpy(multicast_ips[current_subscribed_classes], multicast_address);
+    current_subscribed_classes++;
+
+    return sockfd;
+}
+
+void *receive_multicast_messages(void *multicast_address){
+    int sockfd = *(int*) multicast_address;
+    char message[BUFLEN];
+    struct sockaddr_in sender_address;
+    socklen_t sender_address_length = sizeof(sender_address);
+
+    while(1){
+        memset(message, 0, BUFLEN);
+        if(recvfrom(sockfd, message, BUFLEN - 1, 0, (struct sockaddr*)&sender_address, &sender_address_length) < 0){
+            perror("Failed to receive multicast group message\n");
+            close(sockfd);
+            exit(1);
+        }
+        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP %s !!!\n  -> [%s]\n", (char*) multicast_address, message);
+    
+        if(logged_in == 1){
+            printf("(student) $ ");
+        }
+        else if(logged_in == 2){
+            printf("(professor) $ ");
+        }
+    }
 }
 
 void handle_sigint(int sig){

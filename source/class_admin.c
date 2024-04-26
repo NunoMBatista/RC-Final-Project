@@ -32,7 +32,7 @@ int main(int argc, char *argv[]){
     // Check port validity
     int PORTO_TURMAS = atoi(argv[2]);
     // Ports below 1024 are reserved for system services and ports above 65535 are invalid
-    if(PORTO_TURMAS < 1024 || PORTO_TURMAS > 65535){
+    if(PORTO_TURMAS < 1024 || PORTO_TURMAS >= FIRST_MULTICAST_PORT){
         printf("<Invalid port>\n[Port must be integers between 1024 and 65535]\n");
         return 1;
     }
