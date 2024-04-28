@@ -195,7 +195,7 @@ void *receive_multicast_messages(void *multicast_address){
             close(sockfd);
             exit(1);
         }
-        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP %s !!!\n  -> [%s]\n", (char*) multicast_address, message);
+        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP %s!!!\n  -> [%s]\n", (char*) multicast_address, message);
     
         if(logged_in == 1){
             printf("(student) $ ");
