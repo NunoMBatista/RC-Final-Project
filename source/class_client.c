@@ -12,6 +12,10 @@
 
 #include "global.h"
 
+#define LOGIN "\t   __             _       \n\t  / /  ___   __ _(_)_ __  \n\t / /  / _ \\ / _` | | '_ \\ \n\t/ /__| (_) | (_| | | | | |\n\t\\____/\\___/ \\__, |_|_| |_|\n\t            |___/         "
+#define STUDENT "\t __ _             _            _   \n\t/ _\\ |_ _   _  __| | ___ _ __ | |_ \n\t\\ \\| __| | | |/ _` |/ _ \\ '_ \\| __|\n\t_\\ \\ |_| |_| | (_| |  __/ | | | |_ \n\t\\__/\\__|\\__,_|\\__,_|\\___|_| |_|\\__|\n\t\n"
+#define PROFESSOR "\t   ___            __                          \n\t  / _ \\_ __ ___  / _| ___  ___ ___  ___  _ __ \n\t / /_)/ '__/ _ \\| |_ / _ \\/ __/ __|/ _ \\| '__|\n\t/ ___/| | | (_) |  _|  __/\\__ \\__ \\ (_) | |   \n\t\\/    |_|  \\___/|_|  \\___||___/___/\\___/|_|   \n\t\n"
+
 // Socket file descriptor
 int current_subscribed_classes = 0;
 int client_socket;
@@ -21,14 +25,19 @@ int multicast_exit = 0;
 int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
 
 char multicast_ips[MAX_SUBSCRIBED_CLASSES][16];
-unsigned int last_assigned_port = FIRST_MULTICAST_PORT;
+//unsigned int last_assigned_port = FIRST_MULTICAST_PORT;
 
 int join_multicast_group(char *multicast_address);
 void *receive_multicast_messages(void *multicast_address);
 
+void display_message_in_box(char *message);
+char* repeat_char(char c, int length);
 void handle_sigint(int sig);
 
 int main(int argc, char *argv[]){
+    // Clear the screen
+    printf("\033[H\033[J");
+
     signal(SIGINT, handle_sigint);
     // Server's ip address
     char endServer[100]; 
@@ -85,7 +94,10 @@ int main(int argc, char *argv[]){
 
     int bytes_received;
    
-    char *console_string = "> "; // Character to be displayed in the console
+    char console_string[BUFLEN]; // Character to be displayed in the console
+    strcpy(console_string, LOGIN);
+    strcat(console_string, "\n\n\n> ");
+
     while(1){
         // Clear the message_received and message_sent buffers
         memset(message_received, 0, BUFLEN);
@@ -98,11 +110,15 @@ int main(int argc, char *argv[]){
         if(logged_in == 0){
             if(strcmp(message_received, "OK\nLOGGED IN AS STUDENT\n") == 0){
                 logged_in = 1;
-                console_string = "(student) $ ";
+                //console_string = "(student) $ ";
+                strcpy(console_string, STUDENT);
+                strcat(console_string, "\n\n\n(student) $ ");
             }
             else if(strcmp(message_received, "OK\nLOGGED IN AS PROFESSOR\n") == 0){
                 logged_in = 2;
-                console_string = "(professor) $ ";
+                //console_string = "(professor) $ ";
+                strcpy(console_string, PROFESSOR);
+                strcat(console_string, "\n\n\n(professor) $ ");
             }
         }
 
@@ -112,7 +128,7 @@ int main(int argc, char *argv[]){
         }
         message_received[bytes_received - 1] = '\0';
 
-        printf("%s\n", message_received);
+        printf("\033[1;36m%s\033[0m", message_received);
 
         // Check if the message is a multicast message
         char *token = strtok(message_received, " ");
@@ -122,16 +138,26 @@ int main(int argc, char *argv[]){
             token[strlen(token) - 2] = '\0'; // -2 to account the newline and the '<'
             // Join the multicast group
             int multicast_socket = join_multicast_group(token);
-            printf("-> Joined multicast group %s <-\n\n", token);
+            printf("-> Joined multicast group %s <-\n", token);
 
             // Create a thread to receive multicast messages
             pthread_create(&class_threads[current_subscribed_classes - 1], NULL, receive_multicast_messages, (void*) &multicast_socket);
         }
 
+        printf("\033[1;32m");
         // Get user input and send it to the server
-        printf("%s", console_string);
+
+        printf("\n%s", console_string);        
         
+
+
+
         fgets(message_sent, BUFLEN - 1, stdin);
+
+
+        // Clear the screen
+        printf("\033[0m \033[H\033[J");
+
         message_sent[strlen(message_sent) - 1] = '\0';
         // + 1 to include the null character
         write(client_socket, message_sent, strlen(message_sent) + 1);
@@ -169,7 +195,7 @@ int join_multicast_group(char *multicast_address){
 
     //multicast_address_struct.sin_port = htons(last_assigned_port); // Port
     
-    last_assigned_port++; // Increment last_assigned_port for the next multicast group
+    //last_assigned_port++; // Increment last_assigned_port for the next multicast group
 
     // Bind the socket to the multicast address
     if(bind(sockfd, (struct sockaddr*)&multicast_address_struct, sizeof(multicast_address_struct)) < 0){
@@ -210,8 +236,15 @@ void *receive_multicast_messages(void *multicast_address){
             close(sockfd);
             exit(1);
         }
-        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP %s!!!\n  -> [%s]\n", (char*) multicast_address, message);
-    
+
+        // Clear the screen
+        printf("\033[36m \033[H\033[J");
+
+        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP %s!!!\n\n", (char*) multicast_address);
+        display_message_in_box(message); 
+
+        printf("\n[ENTER TO CONTINUE]\n");
+
         if(logged_in == 1){
             printf("(student) $ ");
         }
@@ -219,6 +252,48 @@ void *receive_multicast_messages(void *multicast_address){
             printf("(professor) $ ");
         }
     }
+
+    if(setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &multicast_address, sizeof(multicast_address)) < 0){
+        perror("Failed to drop multicast group\n");
+        close(sockfd);
+        return NULL;
+    }
+
+    return NULL;
+}
+
+void display_message_in_box(char *message){
+    char *line = strtok(message, "\n");
+    int max_len = 0;
+
+    // Find the length of the longest line
+    while (line) {
+        int len = strlen(line);
+        if (len > max_len) {
+            max_len = len;
+        }
+        line = strtok(NULL, "\n");
+    }
+
+    printf("\033[1;36m"); // Set color to cyan
+    printf("+%s+\n", repeat_char('-', max_len + 2)); // Top border
+
+    // Reset strtok
+    line = strtok(message, "\n");
+    while (line) {
+        printf("| %-*s |\n", max_len, line); // Message line with padding
+        line = strtok(NULL, "\n");
+    }
+
+    printf("+%s+\n", repeat_char('-', max_len + 2)); // Bottom border
+    printf("\033[0m"); // Reset color to default
+}
+
+char* repeat_char(char c, int length){
+    char* str = malloc(length + 1);
+    memset(str, c, length);
+    str[length] = '\0';
+    return str;
 }
 
 void handle_sigint(int sig){
@@ -226,6 +301,7 @@ void handle_sigint(int sig){
 
     if(sig == SIGINT){
         printf("\nSHUTTING DOWN CLIENT\n");
+        multicast_exit = 1; 
         close(client_socket);
         exit(0);
     }

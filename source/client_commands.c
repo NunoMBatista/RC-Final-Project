@@ -35,7 +35,7 @@ char *next_available_multicast_ip() {
 }
 
 // LOGIN <username> <password>
-User* client_login(char *username, char *password, int client_socket){
+User *client_login(char *username, char *password, int client_socket){
     #ifdef DEBUG
     printf("DEBUG# Logging in user %s with password %s...\n", username, password);
     #endif
@@ -58,7 +58,7 @@ User* client_login(char *username, char *password, int client_socket){
     }
     
     if(user->role[0] == '\0'){
-        sprintf(response, "REJECTED\n");
+        sprintf(response, "\033[33mREJECTED\n\n\033[0m");
         write(client_socket, response, strlen(response) + 1);
     }
     else if(strcmp(user->role, "administrador") == 0){
@@ -119,7 +119,7 @@ void list_classes(int client_socket){
         strcat(response, append);
     }
 
-    strcat(response, "\n");
+    strcat(response, "\n\n");
     sem_post(classes_sem);
     write(client_socket, response, strlen(response) + 1);
     
@@ -158,7 +158,7 @@ void list_subscribed(int client_socket){
         printf("DEBUG# Appending %s\n", append);
         strcat(response, append);
     }
-    strcat(response, "\n");
+    strcat(response, "\n\n");
     write(client_socket, response, strlen(response) + 1);
     #ifdef DEBUG
     printf("DEBUG# Classes listed\n");
@@ -225,8 +225,8 @@ void subscribe_class(char *class_name, int client_socket, User *user_info){
             write(client_socket, response, strlen(response) + 1);
             return;
         }
-
     }
+
     #ifdef DEBUG
     printf("DEBUG# Class %s does not exist\n", class_name);
     #endif
@@ -253,9 +253,9 @@ void create_class(char *class_name, int capacity, int client_socket){
     char *multicast_address = next_available_multicast_ip();
 
     // Access shared memory to find the last assigned multicast port
-    sem_wait(classes_sem);
-    int last_assigned_multicast_port = classes_shm->classes_count + FIRST_MULTICAST_PORT;
-    sem_post(classes_sem);
+    // sem_wait(classes_sem);
+    // int last_assigned_multicast_port = classes_shm->classes_count + FIRST_MULTICAST_PORT;
+    // sem_post(classes_sem);
 
     // Lock semaphore
     #ifdef DEBUG
@@ -374,7 +374,7 @@ void create_class(char *class_name, int capacity, int client_socket){
     #endif
     sem_post(classes_sem);
 
-    sprintf(response, "OK <%s>\n", multicast_address);
+    sprintf(response, "OK <%s>\n\n", multicast_address);
     
     write(client_socket, response, strlen(response) + 1);
 }
