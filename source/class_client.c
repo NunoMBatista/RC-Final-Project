@@ -15,6 +15,7 @@
 // Socket file descriptor
 int current_subscribed_classes = 0;
 int client_socket;
+int multicast_exit = 0;
 
 // Flag to check if the user is logged in
 int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
@@ -148,17 +149,31 @@ int join_multicast_group(char *multicast_address){
         exit(1);
     }
 
+
+    // Let the socket reuse the address
+    int reuse = 1;
+    if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+        perror("<setsockopt failed>\n");
+        close(sockfd);
+        exit(1);
+    }
+
+    unsigned int multicast_address_int = inet_addr(multicast_address);
     // Set the multicast_address_struct to the multicast address and port
     struct sockaddr_in multicast_address_struct;
+
     memset(&multicast_address_struct, 0, sizeof(multicast_address_struct));
     multicast_address_struct.sin_family = AF_INET; // IPv4
-    multicast_address_struct.sin_port = htons(last_assigned_port); // Port
     multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
+    multicast_address_struct.sin_port = htons(FIRST_MULTICAST_PORT + multicast_address_int % 1000); // Port
+
+    //multicast_address_struct.sin_port = htons(last_assigned_port); // Port
+    
     last_assigned_port++; // Increment last_assigned_port for the next multicast group
 
     // Bind the socket to the multicast address
     if(bind(sockfd, (struct sockaddr*)&multicast_address_struct, sizeof(multicast_address_struct)) < 0){
-        printf("<Bind failed>\n");
+        perror("<Bind failed>\n");
         close(sockfd);
         exit(1);
     }
@@ -188,7 +203,7 @@ void *receive_multicast_messages(void *multicast_address){
     struct sockaddr_in sender_address;
     socklen_t sender_address_length = sizeof(sender_address);
 
-    while(1){
+    while(!multicast_exit){
         memset(message, 0, BUFLEN);
         if(recvfrom(sockfd, message, BUFLEN - 1, 0, (struct sockaddr*)&sender_address, &sender_address_length) < 0){
             perror("Failed to receive multicast group message\n");
@@ -207,6 +222,8 @@ void *receive_multicast_messages(void *multicast_address){
 }
 
 void handle_sigint(int sig){
+    // CLOSE MULTICAST GROUPS
+
     if(sig == SIGINT){
         printf("\nSHUTTING DOWN CLIENT\n");
         close(client_socket);

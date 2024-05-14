@@ -263,7 +263,6 @@ void create_class(char *class_name, int capacity, int client_socket){
     #endif
     sem_wait(classes_sem);
 
-
     // Check if the class already exists
     #ifdef DEBUG
     printf("DEBUG# Checking if class already exists...\n");
@@ -316,11 +315,19 @@ void create_class(char *class_name, int capacity, int client_socket){
     printf("DEBUG# Setting multicast address...\n");
     #endif
 
+
+    unsigned long int address = inet_addr(multicast_address);
+
     struct sockaddr_in multicast_address_struct;
     memset(&multicast_address_struct, 0, sizeof(multicast_address_struct));
     multicast_address_struct.sin_family = AF_INET; // IPv4
-    multicast_address_struct.sin_port = htons(last_assigned_multicast_port); // Port
-    multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
+    multicast_address_struct.sin_addr.s_addr = address; // Multicast address
+    multicast_address_struct.sin_port = htons(FIRST_MULTICAST_PORT + address % 1000); // Port
+    
+    
+    //multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
+    //multicast_address_struct.sin_port = htons(last_assigned_multicast_port); // Port
+
 
     // Set the multicast group to join
     // #ifdef DEBUG
