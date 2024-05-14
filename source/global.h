@@ -13,7 +13,7 @@
 #define MAX_CLASS_CAPACITY 100
 #define FIRST_MULTICAST_PORT 5000
 #define MAX_CLASSES 100
-#define BASE_MULTICAST_ADDRESS 0xE0000001 // 224.0.0.1
+#define BASE_MULTICAST_ADDRESS 0xE0000101 // 224.0.1.1
 #define MAX_MULTICAST_ADDRESS 0xEFFFFFFF // 239.255.255.255
 //extern unsigned int last_assigned_multicast_port;
 //extern unsigned int last_assigned_multicast_address;

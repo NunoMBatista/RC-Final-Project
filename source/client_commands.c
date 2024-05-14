@@ -321,7 +321,6 @@ void create_class(char *class_name, int capacity, int client_socket){
     multicast_address_struct.sin_family = AF_INET; // IPv4
     multicast_address_struct.sin_port = htons(last_assigned_multicast_port); // Port
     multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
-    //last_assigned_multicast_port++;
 
     // Set the multicast group to join
     // #ifdef DEBUG
