@@ -1,5 +1,7 @@
+664:1000:1001:/home/testing_commands.txt
 755:0:0:/home/class_server
 664:1000:1001:/home/makefile
+664:1000:1001:/home/global.h
 644:0:0:/home/class_admin.o
 644:0:0:/home/client_commands.o
 644:0:0:/home/class_client.o

@@ -1,18 +1,37 @@
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <string.h>
-#include <sys/socket.h> // socket(), bind(), recvfrom()
-#include <unistd.h> // close()
-#include <arpa/inet.h> // sockaddr_in, htons(), htonl(), inet_ntoa()
+#include <sys/socket.h> 
+#include <unistd.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <fcntl.h> 
+#include <semaphore.h>
 
 #include "admin_commands.h"
 #include "client_commands.h"
+#include "global.h"
 
-#define BUFLEN 1024
+unsigned int last_assigned_multicast_port = FIRST_MULTICAST_PORT;
+unsigned int last_assigned_multicast_address = BASE_MULTICAST_ADDRESS;
 
+User registered_users[MAX_REGISTERED_USERS];
+
+int registered_users_count = 0; 
+int admin_logged_in = 0; // Boolean to check if an admin is logged in
 pid_t main_process_id;
+
+Classes *classes_shm;
+int classes_shm_id;
+
+sem_t *classes_sem;
+
+ClassInfo client_subscribed_classes[MAX_SUBSCRIBED_CLASSES];
+int client_subscribed_classes_count = 0;
 
 int tcp_socket;
 int udp_socket;
@@ -22,8 +41,9 @@ void* handle_udp(void* udp_port_ptr);
 void* handle_tcp(void* tcp_port_ptr);
 void process_client(int client_socket);
 void handle_sigint(int sig);
-void interpret_client_command(char* command, int client_socket);
+void interpret_client_command(char* command, int client_socket, User** user_info);
 void interpret_admin_command(char* command, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len);
+int read_configuration_file(char* file_name);
 
 /* 
     The main function should create a socket that can receive both TCP and UDP messages.
@@ -43,8 +63,8 @@ int main(int argc, char *argv[]){
     int PORTO_TURMAS = atoi(argv[1]);
     int PORTO_CONFIG = atoi(argv[2]);
     // Ports below 1024 are reserved for system services and ports above 65535 are invalid
-    if(PORTO_TURMAS < 1024 || PORTO_TURMAS > 65535 || PORTO_CONFIG < 1024 || PORTO_CONFIG > 65535){
-        printf("<Invalid port>\n[Port must be integers between 1024 and 65535]\n");
+    if(PORTO_TURMAS < 1024 || PORTO_TURMAS >= FIRST_MULTICAST_PORT || PORTO_CONFIG < 1024 || PORTO_CONFIG >= FIRST_MULTICAST_PORT){
+        printf("<Invalid port>\n[Port must be integers between 1024 and %d]\n", FIRST_MULTICAST_PORT);
         return 1;
     }
 
@@ -60,6 +80,32 @@ int main(int argc, char *argv[]){
         printf("<File not found>\n[File %s not found]\n", argv[3]);
         return 1;
     }
+    fclose(file);
+
+    registered_users_count = read_configuration_file(argv[3]);
+
+    // Create shared memory for classes
+    classes_shm_id = shmget(IPC_PRIVATE, sizeof(Classes), IPC_CREAT | 0666);
+    if(classes_shm_id == -1){
+        perror("Error creating shared memory");
+        exit(1);
+    }
+    if((classes_shm = (Classes*) shmat(classes_shm_id, NULL, 0)) == (void*) -1){
+        perror("Error attaching shared memory");
+        exit(1);
+    }
+
+    classes_shm->classes_count = 0; // Initialize the number of classes
+
+    // Initialize the semaphore
+    sem_close(classes_sem);
+    sem_unlink(SEMAPHORE_NAME);
+    classes_sem = sem_open(SEMAPHORE_NAME, O_CREAT, 0666, 1);
+    if(classes_sem == SEM_FAILED){
+        perror("Error creating semaphore");
+        exit(1);
+    }
+
 
     pthread_t udp_thread, tcp_thread;
     // Start listening for UDP messages
@@ -159,11 +205,20 @@ void* handle_tcp(void* tcp_port_ptr){
 }
 
 void process_client(int client_socket){
-    write(client_socket, "Welcome to the server\n", 23); // Send a welcome message to the client
+    #ifdef DEBUG
+    printf("DEBUG# Client connected\n");
+    #endif
+
+    write(client_socket, "-- Welcome to the class server, login as a student or a professor before using the commands --\n", 96);
+
+    //char user_role[15]; // Store the user's role
+    //user_role[0] = '\0';
+    User *user_info = (User*) malloc(sizeof(User));
+    user_info->role[0] = '\0';
 
     int bytes_received = 0;
     char buffer[BUFLEN];
-    char response[BUFLEN + 30]; // + 30 to account for the "Message received - " prefix
+    char response[BUFLEN + 1]; // + 1 to account for the "\n" suffix on the client's end
 
     // Clear the buffer and response before receiving a new message
     memset(buffer, 0, BUFLEN);
@@ -173,19 +228,17 @@ void process_client(int client_socket){
     while((bytes_received = read(client_socket, buffer, BUFLEN - 1)) > 0){
         buffer[bytes_received - 1] = '\0'; // Add null terminator to the end of the message
         if(bytes_received == -1){
-            perror("Error reading message");
+            perror("Error reading message\n");
             break;
         }
 
-        printf("Message received - %s\n", buffer);
-
-        // Send a response to the client
-        printf(response, "Message received - %s\n", buffer);
-        //write(client_socket, response, strlen(response));
+        #ifdef DEBUG
+        printf("DEBUG# Client message received - %s\n", buffer);
+        #endif
 
         // Interpret the command
-        interpret_client_command(buffer, client_socket);
-                
+        interpret_client_command(buffer, client_socket, &user_info);
+        
         // Clear the buffer and response before receiving a new message
         memset(buffer, 0, BUFLEN);
         memset(response, 0, BUFLEN);
@@ -194,7 +247,7 @@ void process_client(int client_socket){
         printf("Client disconnected\n");
     }
     else{
-        perror("Error reading message");
+        perror("Error reading message\n");
     }
 
     close(client_socket);
@@ -203,6 +256,7 @@ void process_client(int client_socket){
 void* handle_udp(void *udp_port_ptr){
     // Cast the void pointer to an integer
     int udp_port = *((int*) udp_port_ptr);
+    int bytes_received = 0;
 
     // Create socket for UDP messages
     // AF_INET: IPv4 IP
@@ -237,9 +291,12 @@ void* handle_udp(void *udp_port_ptr){
 
     // After setting up and binding the socket, start listening for messages
     char buffer[BUFLEN];
+    memset(buffer, 0, BUFLEN);
+
     // Create a sockaddr_in struct to store the client's address
     struct sockaddr_in client_address;
     socklen_t client_address_len = sizeof(client_address);
+
     while(1){
         // Clear the buffer before receiving a new message
         memset(buffer, 0, BUFLEN);
@@ -247,16 +304,18 @@ void* handle_udp(void *udp_port_ptr){
         // Receive a message from the client and store the client's address in client_address
         // recvfrom() is a blocking function, meaning the program will wait until a message is received
         // BUFFLEN - 1 to leave space for the null terminator
-        int bytes_received = recvfrom(udp_socket, buffer, BUFLEN - 1, 0, (struct sockaddr*) &client_address, &client_address_len);
+        bytes_received = recvfrom(udp_socket, buffer, BUFLEN - 1, 0, (struct sockaddr*) &client_address, &client_address_len);
         buffer[bytes_received-1] = '\0'; // Remove the newline character from the message
         if(bytes_received == -1){
             perror("Error receiving message");
             break;
         }
-        
-        printf("Message from %s:%d - %s\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port), buffer); 
-        
-        //sendto(udp_socket, "Message received\n", 17, 0, (struct sockaddr*) &client_address, client_address_len); // Send a message to the client to confirm the message was received
+
+        #ifdef DEBUG
+        printf("DEBUG# Admin message from %s:%d - %s\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port), buffer); 
+        #endif
+
+        // sendto(udp_socket, "Message received\n", 17, 0, (struct sockaddr*) &client_address, client_address_len); // Send a message to the client to confirm the message was received
 
         // Interpret the command
         interpret_admin_command(buffer, udp_socket, client_address, client_address_len);
@@ -273,6 +332,22 @@ void handle_sigint(int sig){
         close(tcp_socket);
         close(udp_socket);
 
+        // Detach and remove the shared memory
+        if(shmdt(classes_shm) == -1){
+            perror("Error detaching shared memory");
+        }
+        if(shmctl(classes_shm_id, IPC_RMID, NULL) == -1){
+            perror("Error removing shared memory");
+        }
+
+        // Close and unlink the semaphore
+        if(sem_close(classes_sem) == -1){
+            perror("Error closing semaphore");
+        }
+        if(sem_unlink(SEMAPHORE_NAME) == -1){
+            perror("Error unlinking semaphore");
+        }
+
         // If the process is the main process, print a message before exiting
         if(getpid() == main_process_id){
             printf("\nSHUTTING DOWN SERVER\n");
@@ -282,36 +357,53 @@ void handle_sigint(int sig){
     }
 }
 
-void interpret_client_command(char* command, int client_socket){
+// Double pointer is used to change the value of the user_info pointer in the main function when the user logs in
+void interpret_client_command(char* command, int client_socket, User **user_info){
     char* token = strtok(command, " ");
     if(token == NULL){
-        write(client_socket, "<Invalid command>\n", 18);
+        write(client_socket, "<Empty command>\n", 17);
         return;
     }
     
     if(strcmp("LOGIN", token) == 0){
+        // Check if the user is already logged in
+        if((*user_info)->role[0] != '\0'){
+            write(client_socket, "<Already logged in>\n", 21);
+            return;
+        }
+
         char *error_message = "<Invalid command>\n Correct Usage: LOGIN <username> <password>\n";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
         if(username == NULL || password == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
-        client_login(username, password, client_socket);
+        
+        //User* user;
+
+        *user_info = client_login(username, password, client_socket);
+        //user_info = user; 
+        return;
+    }
+
+    // Check if the user is logged in before executing any other command
+    else if((*user_info)->role[0] == '\0'){
+        write(client_socket, "<Not logged in>\n", 17);
         return;
     }
 
     if(strcmp("LIST_CLASSES", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: LIST_CLASSES\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: LIST_CLASSES\n";
         // Check if the command has the correct number of arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         list_classes(client_socket);
@@ -319,10 +411,14 @@ void interpret_client_command(char* command, int client_socket){
     }
 
     if(strcmp("LIST_SUBSCRIBED", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: LIST_SUBSCRIBED\n";
+        if(strcmp((*user_info)->role, "aluno") != 0){
+            write(client_socket, "<Unauthorized command>\nYou need to be a student to list subscribed classes\n", 76);
+            return;
+        }
+        char *error_message = "<Invalid command>\nCorrect Usage: LIST_SUBSCRIBED\n";
         // Check if the command has the correct number of arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         list_subscribed(client_socket);
@@ -330,81 +426,184 @@ void interpret_client_command(char* command, int client_socket){
     }
 
     if(strcmp("SUBSCRIBE", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: SUBSCRIBE <class_name>\n";
+        #ifdef DEBUG
+        printf("DEBUG# Received subscribe command\n");
+        printf("DEBUG# Checking parameters...\n");
+        #endif
+
+        if(strcmp((*user_info)->role, "aluno") != 0){
+            write(client_socket, "<Unauthorized command>\nYou need to be a student to subscribe to a class\n", 73);
+            return;
+        }
+
+        char *error_message = "<Invalid command>\nCorrect Usage: SUBSCRIBE <class_name>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
         if(class_name == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
-        subscribe_class(class_name, client_socket);
+        subscribe_class(class_name, client_socket, *user_info);
         return;
     }
 
     if(strcmp("CREATE_CLASS", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: CREATE_CLASS <class_name> <capacity>\n";
+        if(strcmp((*user_info)->role, "professor") != 0){
+            write(client_socket, "<Unauthorized command>\nYou need to be a professor to create a class\n", 69);
+            return;
+        }
+
+        #ifdef DEBUG
+        printf("DEBUG# Received create class command\n");
+        printf("DEBUG# Checking parameters...\n");
+        #endif
+
+        char *error_message = "<Invalid command>\nCorrect Usage: CREATE_CLASS <class_name> <capacity>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
         char* capacity_str = strtok(NULL, " ");
         if(class_name == NULL || capacity_str == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
+
+        // Check parameter length
+        if(strlen(class_name) > MAX_CLASS_NAME_LEN || strlen(capacity_str) > MAX_CLASS_CAPACITY){
+            write(client_socket, "<Invalid command>\nClass name must have less than 50 characters and capacity must be an integer\n", 90);
+            return;
+        }
+
+        for(int i = 0; i < (int)strlen(capacity_str); i++){
+            if(capacity_str[i] < '0' || capacity_str[i] > '9'){
+                write(client_socket, error_message, strlen(error_message) + 1);
+                return;
+            }
+        }
+
+        int capacity = atoi(capacity_str);
+        // Check capacity validity
+        if(capacity < 1 || capacity > MAX_CLASS_CAPACITY){
+            write(client_socket, "<Invalid command>\nCapacity must be an integer between 1 and 100\n", 65);
+            return;
+        }
+
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
-        int capacity = atoi(capacity_str);
+
+
+        #ifdef DEBUG
+        printf("DEBUG# Parameters are valid\n");
+        printf("DEBUG# Creating class...\n");
+        #endif        
+
         create_class(class_name, capacity, client_socket);
         return;
     }
 
     if(strcmp("SEND", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: SEND <class_name> <message>\n";
+        if(strcmp((*user_info)->role, "professor") != 0){
+            write(client_socket, "<Unauthorized command>\nYou need to be a professor to send a message to a class\n", 80);
+            return;
+        }
+        char *error_message = "<Invalid command>\nCorrect Usage: SEND <class_name> <message>\n";
         // Check if the command has the correct number of arguments
         char* class_name = strtok(NULL, " ");
         char* message = strtok(NULL, "");
         if(class_name == NULL || message == NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
-            write(client_socket, error_message, strlen(error_message));
+            write(client_socket, error_message, strlen(error_message) + 1);
             return;
         }
         send_message(class_name, message, client_socket);
         return;
     }
     
-    write(client_socket, "<Invalid command>\n", 18);
-    
+    write(client_socket, "<Invalid command>\n", 19);
 }
 
 void interpret_admin_command(char* command, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
-    printf("Command: %s\n", command);   
+    #ifdef DEBUG
+    printf("DEBUG# Received admin command: %s\n", command);
+    #endif   
+
     char *token = strtok(command, " ");
     if(token == NULL){
         sendto(client_socket, "<Invalid command>\n", 20, 0, (struct sockaddr*) &client_address, client_address_len);
         return;
     }
 
+    if(strcmp("LOGIN", token) == 0){
+        // Check if the admin is already logged in
+        if(admin_logged_in == 1){
+            sendto(client_socket, "<Already logged in as admin>\n", 30, 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+
+        char *error_message = "<Invalid command>\nCorrect Usage: LOGIN <username> <password>\n\n";
+        // Check if the command has the correct number of arguments
+        char* username = strtok(NULL, " ");
+        char* password = strtok(NULL, " ");
+        if(username == NULL || password == NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+        // Check if there are no more arguments
+        if(strtok(NULL, " ") != NULL){
+            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+
+        admin_logged_in = admin_login(username, password, client_socket, client_address, client_address_len);
+        return;
+    }
+
+    if(admin_logged_in == 0){
+        sendto(client_socket, "<Unauthorized command>\nYou need to be logged in as an admin to use this console\n", 81, 0, (struct sockaddr*) &client_address, client_address_len);
+        return;
+    }
+
     if(strcmp("ADD_USER", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: ADD_USER <username> <password> <role>\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: ADD_USER <username> <password> <role>\n\n";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
         char* role = strtok(NULL, " ");
+
+
         if(username == NULL || password == NULL || role == NULL){
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
+        printf("fase 1\n");
+
+        // Check parameter length
+        if(strlen(username) > MAX_USERNAME_LEN || strlen(password) > MAX_PASSWORD_LEN || strlen(role) > MAX_ROLE_LEN){
+            sendto(client_socket, "<Invalid command>\nUsername, password and role must have less than 50 characters\n\n", 82, 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+
+        printf("fase 2\n");
+        
+        // Check role validity
+        if(strcmp(role, "administrador") != 0 && strcmp(role, "aluno") != 0 && strcmp(role, "professor") != 0){
+            sendto(client_socket, "<Invalid command>\nRole must be 'administrador', 'aluno' or 'professor'\n\n", 73, 0, (struct sockaddr*) &client_address, client_address_len);
+            return;
+        }
+
+        printf("fase 3\n");
+
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
@@ -415,7 +614,7 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
     }
 
     if(strcmp("DEL", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: DEL <username>\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: DEL <username>\n\n";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         if(username == NULL){
@@ -432,44 +631,106 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
     }
 
     if(strcmp("LIST", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: LIST\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: LIST\n\n";
         // Check if the command has the correct number of arguments
         if(strtok(NULL, " ") != NULL){
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
+        
         list_users(client_socket, client_address, client_address_len);
         return;
     }
 
     if(strcmp("QUIT_SERVER", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: QUIT_SERVER\n";
+        char *error_message = "<Invalid command>\nCorrect Usage: QUIT_SERVER\n\n";
         // Check if the command has the correct number of arguments
         if(strtok(NULL, " ") != NULL){
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
-        shutdown_server(client_socket, client_address, client_address_len);
-        return;
-    }
 
-    if(strcmp("LOGIN", token) == 0){
-        char *error_message = "<Invalid command>\n Correct Usage: LOGIN <username> <password>\n";
-        // Check if the command has the correct number of arguments
-        char* username = strtok(NULL, " ");
-        char* password = strtok(NULL, " ");
-        if(username == NULL || password == NULL){
-            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
-            return;
-        }
-        // Check if there are no more arguments
-        if(strtok(NULL, " ") != NULL){
-            sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
-            return;
-        }
-        admin_login(username, password, client_socket, client_address, client_address_len);
+        sendto(client_socket, "Server shutting down...\n", 25, 0, (struct sockaddr*) &client_address, client_address_len);
+
+        handle_sigint(SIGINT); 
+        //shutdown_server(client_socket, client_address, client_address_len);
         return;
     }
 
     sendto(client_socket, "<Invalid command>\n", 19, 0, (struct sockaddr*) &client_address, client_address_len);
+}
+
+int read_configuration_file(char* file_name){
+    FILE *file = fopen(file_name, "r");
+    if(file == NULL){
+        perror("Error opening configuration file");
+        exit(1);
+    }
+
+    char buffer[BUFLEN];
+    int current_user = 0;
+
+    // Read the file line by line
+    while(fgets(buffer, BUFLEN, file) != NULL){
+        char* token = strtok(buffer, ";"); // Split the line by the ';' character
+        if(token == NULL){ // Skip empty lines
+            printf("Empty line in configuration file\n");
+            continue;
+        }
+
+        User* new_user = (User*) malloc(sizeof(User));
+        strcpy(new_user->username, token);
+
+        token = strtok(NULL, ";");
+        if(token == NULL){
+            printf("Missing password in configuration file line %s\n", buffer);
+            free(new_user); // Skip lines with missing password
+            continue;
+        }
+        strcpy(new_user->password, token);
+
+        token = strtok(NULL, ";");
+        if(token == NULL){ // Skip lines with missing role
+            printf("Missing role in configuration file line %s\n", buffer);
+            free(new_user);
+            continue;
+        }
+
+        token[strcspn(token, "\n")] = 0; // Remove the newline character from the end of the string
+        // Check if the role is valid
+        if(strcmp(token, "administrador") != 0 && strcmp(token, "aluno") != 0 && strcmp(token, "professor") != 0){
+            printf("Invalid role in configuration file line %s\n", buffer);
+            free(new_user);
+            continue;
+        }
+        strcpy(new_user->role, token);
+
+
+        // Check if there are no more arguments
+        if(strtok(NULL, ";") != NULL){
+            printf("Invalid line in configuration file\n");
+            exit(1);
+        }
+
+        // Check if the maximum number of registered users has been reached
+        if(current_user >= MAX_REGISTERED_USERS){
+            printf("Maximum number of registered users reached\n");
+            break;
+        }
+
+        // Check for duplicate usernames
+        for(int i = 0; i < current_user; i++){
+            if(strcmp(registered_users[i].username, new_user->username) == 0){
+                printf("Duplicate username in configuration file\n");
+                free(new_user);
+                continue;
+            }
+        }
+
+        // Add the user to the list of registered users
+        registered_users[current_user] = *new_user;
+        current_user++;
+    }
+    fclose(file);
+    return current_user;
 }

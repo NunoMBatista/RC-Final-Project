@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <signal.h>
-#define BUFLEN 1024
+#include "global.h"
 
 // Socket file descriptor
 int client_socket;
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]){
     // Check port validity
     int PORTO_TURMAS = atoi(argv[2]);
     // Ports below 1024 are reserved for system services and ports above 65535 are invalid
-    if(PORTO_TURMAS < 1024 || PORTO_TURMAS > 65535){
+    if(PORTO_TURMAS < 1024 || PORTO_TURMAS >= FIRST_MULTICAST_PORT){
         printf("<Invalid port>\n[Port must be integers between 1024 and 65535]\n");
         return 1;
     }
@@ -62,14 +62,15 @@ int main(int argc, char *argv[]){
     char message_received[BUFLEN];
 
     int bytes_received;
-    socklen_t server_address_length = sizeof(server_address); // Change this line
-   
+    socklen_t server_address_length = sizeof(server_address);
+    
     while(1){
         // Clear the message_received and message_sent buffers
         memset(message_received, 0, BUFLEN);
         memset(message_sent, 0, BUFLEN);
 
         // Get user input and send it to the server
+        printf("# ");
         fgets(message_sent, BUFLEN - 1, stdin);
         message_sent[strlen(message_sent) - 1] = '\0';
         // + 1 to include the null character
@@ -83,7 +84,7 @@ int main(int argc, char *argv[]){
         }
         message_received[bytes_received - 1] = '\0';
 
-        printf("Received message from server - %s\n", message_received);
+        printf("%s\n", message_received);
     }
 
     close(client_socket);
