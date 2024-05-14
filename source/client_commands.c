@@ -394,6 +394,7 @@ void send_message(char *class_name, char *message, int client_socket){
         if(strcmp(current_class.name, class_name) == 0){
             if(sendto(current_class.udp_socket, message, strlen(message) + 1, 0, 
                 (struct sockaddr*)&current_class.udp_address, sizeof(current_class.udp_address)) < 0){
+                    
                 sprintf(response, "REJECTED, failed to send message to class %s\n", class_name);
                 sem_post(classes_sem);
                 write(client_socket, response, strlen(response) + 1);
