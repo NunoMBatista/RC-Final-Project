@@ -324,16 +324,24 @@ void create_class(char *class_name, int capacity, int client_socket){
     //last_assigned_multicast_port++;
 
     // Set the multicast group to join
-    #ifdef DEBUG
-    printf("DEBUG# Joining multicast group...\n");
-    #endif
-    struct ip_mreq multicast_group;
-    multicast_group.imr_multiaddr.s_addr = inet_addr(multicast_address);
-    multicast_group.imr_interface.s_addr = htonl(INADDR_ANY);
+    // #ifdef DEBUG
+    // printf("DEBUG# Joining multicast group...\n");
+    // #endif
+    // struct ip_mreq multicast_group;
+    // multicast_group.imr_multiaddr.s_addr = inet_addr(multicast_address);
+    // multicast_group.imr_interface.s_addr = htonl(INADDR_ANY);
 
-    // Join the multicast group
-    if(setsockopt(multicast_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_group, sizeof(multicast_group)) < 0){
-        printf("<Join failed>\n");
+    // // Join the multicast group
+    // if(setsockopt(multicast_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_group, sizeof(multicast_group)) < 0){
+    //     printf("<Join failed>\n");
+    //     close(multicast_socket);
+    //     sem_post(classes_sem);
+    //     exit(1);
+    // }
+
+    int ttl = 5;
+    if(setsockopt(multicast_socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0){
+        printf("<Set TTL failed>\n");
         close(multicast_socket);
         sem_post(classes_sem);
         exit(1);
