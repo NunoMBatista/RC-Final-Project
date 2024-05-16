@@ -25,7 +25,7 @@ int main(int argc, char *argv[]){
 
     // Check if the number of arguments is correct
     if(argc != 3){
-        printf("<Invalid syntax>\n[Correct Usage: ./class_client <server_address> <PORTO_TURMAS>]\n");
+        printf("<Invalid syntax>\n[Correct Usage: ./class_admin <server_address> <PORTO_CONFIG>]\n");
         return 1;
     }
 

@@ -352,36 +352,6 @@ void* handle_udp(void *udp_port_ptr){
     return NULL;
 }
 
-void handle_sigint(int sig){
-    if(sig == SIGINT){
-        close(tcp_socket);
-        close(udp_socket);
-
-        // Detach and remove the shared memory
-        if(shmdt(classes_shm) == -1){
-            perror("Error detaching shared memory");
-        }
-        if(shmctl(classes_shm_id, IPC_RMID, NULL) == -1){
-            perror("Error removing shared memory");
-        }
-
-        // Close and unlink the semaphore
-        if(sem_close(classes_sem) == -1){
-            perror("Error closing semaphore");
-        }
-        if(sem_unlink(SEMAPHORE_NAME) == -1){
-            perror("Error unlinking semaphore");
-        }
-
-        // If the process is the main process, print a message before exiting
-        if(getpid() == main_process_id){
-            printf("\nSHUTTING DOWN SERVER\n");
-        }
-
-        exit(0);
-    }
-}
-
 // Double pointer is used to change the value of the user_info pointer in the main function when the user logs in
 void interpret_client_command(char* command, int client_socket, User **user_info){
     char* token = strtok(command, " ");
@@ -758,4 +728,34 @@ int read_configuration_file(char* file_name){
     }
     fclose(file);
     return current_user;
+}
+
+void handle_sigint(int sig){
+    if(sig == SIGINT){
+        close(tcp_socket);
+        close(udp_socket);
+
+        // If the process is the main process, print a message before exiting
+        if(getpid() == main_process_id){
+            printf("\nSHUTTING DOWN SERVER\n");
+            
+            // Detach and remove the shared memory
+            if(shmdt(classes_shm) == -1){
+                perror("Error detaching shared memory");
+            }
+            if(shmctl(classes_shm_id, IPC_RMID, NULL) == -1){
+                perror("Error removing shared memory");
+            }
+
+            // Close and unlink the semaphore
+            if(sem_close(classes_sem) == -1){
+                perror("Error closing semaphore");
+            }
+            if(sem_unlink(SEMAPHORE_NAME) == -1){
+                perror("Error unlinking semaphore");
+            }
+        }
+
+        exit(0);
+    }
 }

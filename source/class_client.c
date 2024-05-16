@@ -21,7 +21,7 @@ void *receive_multicast_messages(void *multicast_address);
 void display_message_in_box(char *message);
 char* repeat_char(char c, int length);
 void handle_sigint(int sig);
-
+void thread_exit_handler(void *multicast_address);
 
 // Socket file descriptor
 int current_subscribed_classes = 0;
@@ -228,12 +228,17 @@ void *receive_multicast_messages(void *multicast_address){
     struct sockaddr_in sender_address;
     socklen_t sender_address_length = sizeof(sender_address);
 
+    int nbytes;
     while(!multicast_exit){
         memset(message, 0, BUFLEN);
-        if(recvfrom(sockfd, message, BUFLEN - 1, 0, (struct sockaddr*)&sender_address, &sender_address_length) < 0){
+        if((nbytes = recvfrom(sockfd, message, BUFLEN - 1, 0, (struct sockaddr*)&sender_address, &sender_address_length)) < 0){
             perror("Failed to receive multicast group message\n");
             close(sockfd);
             exit(1);
+        }
+        if(nbytes == 0){
+            printf("The server has shut down\n");
+            break;
         }
 
         // Clear the screen
@@ -296,14 +301,16 @@ char* repeat_char(char c, int length){
 }
 
 void handle_sigint(int sig){
-    // CLOSE MULTICAST GROUPS
     if(sig == SIGINT){
+        // Clear the screen
+        printf("\033[H\033[J\033[1;36m");
         multicast_exit = 1;// Closes multicast socket and drops multicast groups on the next work cycle
-        // for(int i = 0; i < current_subscribed_classes; i++){
-        //     pthread_join(class_threads[i], NULL);
-        //     printf("       -> Left multicast group %s <-\n", multicast_ips[i]);
-        // }
-        printf("\nSHUTTING DOWN CLIENT\n");
+        for(int i = 0; i < current_subscribed_classes; i++){
+            pthread_cancel(class_threads[i]);
+            pthread_join(class_threads[i], NULL);
+            printf("\n       -> Left multicast group %s <-\n", multicast_ips[i]);
+        }
+        printf("\n\t\033[31m      SHUTTING DOWN CLIENT\n\033[0m");
         close(client_socket);
         exit(0);
     }
