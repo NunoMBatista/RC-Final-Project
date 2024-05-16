@@ -16,23 +16,23 @@
 #define STUDENT "\t __ _             _            _   \n\t/ _\\ |_ _   _  __| | ___ _ __ | |_ \n\t\\ \\| __| | | |/ _` |/ _ \\ '_ \\| __|\n\t_\\ \\ |_| |_| | (_| |  __/ | | | |_ \n\t\\__/\\__|\\__,_|\\__,_|\\___|_| |_|\\__|\n\t\n"
 #define PROFESSOR "\t   ___            __                          \n\t  / _ \\_ __ ___  / _| ___  ___ ___  ___  _ __ \n\t / /_)/ '__/ _ \\| |_ / _ \\/ __/ __|/ _ \\| '__|\n\t/ ___/| | | (_) |  _|  __/\\__ \\__ \\ (_) | |   \n\t\\/    |_|  \\___/|_|  \\___||___/___/\\___/|_|   \n\t\n"
 
+int join_multicast_group(char *multicast_address);
+void *receive_multicast_messages(void *multicast_address);
+void display_message_in_box(char *message);
+char* repeat_char(char c, int length);
+void handle_sigint(int sig);
+
+
 // Socket file descriptor
 int current_subscribed_classes = 0;
 int client_socket;
 int multicast_exit = 0;
-
 // Flag to check if the user is logged in
 int logged_in = 0; // 0 if not logged in, 1 if logged in as student, 2 if logged in as professor
 
 char multicast_ips[MAX_SUBSCRIBED_CLASSES][16];
-//unsigned int last_assigned_port = FIRST_MULTICAST_PORT;
-
-int join_multicast_group(char *multicast_address);
-void *receive_multicast_messages(void *multicast_address);
-
-void display_message_in_box(char *message);
-char* repeat_char(char c, int length);
-void handle_sigint(int sig);
+//pthread_t multicast_threads[MAX_SUBSCRIBED_CLASSES];
+pthread_t class_threads[MAX_SUBSCRIBED_CLASSES];
 
 int main(int argc, char *argv[]){
     // Clear the screen
@@ -46,7 +46,6 @@ int main(int argc, char *argv[]){
     // Host entry structure containing server's name and IP address
     struct hostent *hostPtr;
 
-    pthread_t class_threads[MAX_SUBSCRIBED_CLASSES];
 
     // Check if the number of arguments is correct
     if(argc != 3){
@@ -138,7 +137,7 @@ int main(int argc, char *argv[]){
             token[strlen(token) - 2] = '\0'; // -2 to account the newline and the '<'
             // Join the multicast group
             int multicast_socket = join_multicast_group(token);
-            printf("-> Joined multicast group %s <-\n", token);
+            printf("       -> Joined multicast group %s <-\n", token);
 
             // Create a thread to receive multicast messages
             pthread_create(&class_threads[current_subscribed_classes - 1], NULL, receive_multicast_messages, (void*) &multicast_socket);
@@ -239,8 +238,7 @@ void *receive_multicast_messages(void *multicast_address){
 
         // Clear the screen
         printf("\033[36m \033[H\033[J");
-
-        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP %s!!!\n\n", (char*) multicast_address);
+        printf("\n\n!!! MESSAGE RECEIVED FROM MULTICAST GROUP !!!\n\n");
         display_message_in_box(message); 
 
         printf("\n[ENTER TO CONTINUE]\n");
@@ -298,10 +296,11 @@ char* repeat_char(char c, int length){
 
 void handle_sigint(int sig){
     // CLOSE MULTICAST GROUPS
+    multicast_exit = 1; 
+
 
     if(sig == SIGINT){
         printf("\nSHUTTING DOWN CLIENT\n");
-        multicast_exit = 1; 
         close(client_socket);
         exit(0);
     }

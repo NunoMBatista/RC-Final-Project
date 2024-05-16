@@ -101,7 +101,7 @@ void list_classes(int client_socket){
     sem_wait(classes_sem);
 
     if(classes_shm->classes_count == 0){
-        sprintf(response, "No classes available\n");
+        sprintf(response, "No classes available\n\n");
         sem_post(classes_sem);
         write(client_socket, response, strlen(response) + 1);
         return;
@@ -141,7 +141,7 @@ void list_subscribed(int client_socket){
     #endif
 
     if(client_subscribed_classes_count == 0){
-        sprintf(response, "No classes subscribed\n");
+        sprintf(response, "No classes subscribed\n\n");
         write(client_socket, response, strlen(response) + 1);
         return;
     }
