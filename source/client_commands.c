@@ -401,19 +401,19 @@ void send_message(char *class_name, char *message, int client_socket){
             if(sendto(current_class.udp_socket, message, strlen(message) + 1, 0, 
                 (struct sockaddr*)&current_class.udp_address, sizeof(current_class.udp_address)) < 0){
                     
-                sprintf(response, "REJECTED, failed to send message to class %s\n", class_name);
+                sprintf(response, "REJECTED, failed to send message to class %s\n\n", class_name);
                 sem_post(classes_sem);
                 write(client_socket, response, strlen(response) + 1);
                 return;                    
             }
-            sprintf(response, "OK, Message sent to class %s\n", class_name);
+            sprintf(response, "OK, Message sent to class %s\n\n", class_name);
             sem_post(classes_sem);
             write(client_socket, response, strlen(response) + 1);
             return;
         }
     }
 
-    sprintf(response, "REJECTED, class %s does not exist\n", class_name);
+    sprintf(response, "REJECTED, class %s does not exist\n\n", class_name);
     sem_post(classes_sem);
     write(client_socket, response, strlen(response) + 1);
     return;

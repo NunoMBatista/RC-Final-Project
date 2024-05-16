@@ -256,6 +256,7 @@ void *receive_multicast_messages(void *multicast_address){
         close(sockfd);
         return NULL;
     }
+    close(sockfd);
 
     return NULL;
 }
@@ -296,10 +297,12 @@ char* repeat_char(char c, int length){
 
 void handle_sigint(int sig){
     // CLOSE MULTICAST GROUPS
-    multicast_exit = 1; 
-
-
     if(sig == SIGINT){
+        multicast_exit = 1;// Closes multicast socket and drops multicast groups on the next work cycle
+        // for(int i = 0; i < current_subscribed_classes; i++){
+        //     pthread_join(class_threads[i], NULL);
+        //     printf("       -> Left multicast group %s <-\n", multicast_ips[i]);
+        // }
         printf("\nSHUTTING DOWN CLIENT\n");
         close(client_socket);
         exit(0);
