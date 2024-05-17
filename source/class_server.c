@@ -567,7 +567,7 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
     }
 
     if(strcmp("ADD_USER", token) == 0){
-        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: ADD_USER <username> <password> <role>\n\033[0m";
+        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: ADD_USER <username> <password> <role>\n\n\033[0m";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
