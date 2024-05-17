@@ -9,8 +9,6 @@
 // LOGIN <username> <password>
 int admin_login(char *username, char *password, int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
     char response[BUFLEN];
-    //sprintf(response, "Received request to login as admin with username %s and password %s\n", username, password);
-    //sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
 
     // Check if the user is registered
     for(int i = 0; i < registered_users_count; i++){
@@ -22,13 +20,13 @@ int admin_login(char *username, char *password, int client_socket, struct sockad
                 return 1;
             }
 
-            sprintf(response, "REJECTED, USER %s IS NOT AN ADMIN\n", username);
+            sprintf(response, "REJECTED, USER %s IS NOT AN ADMIN\n\n", username);
             sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
             return 0;
         }
     }
 
-    sprintf(response, "REJECTED, USER %s NOT FOUND\n", username);
+    sprintf(response, "REJECTED, USER %s NOT FOUND\n\n", username);
     sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
     return 0;
 }
@@ -42,7 +40,7 @@ void add_user(char *username, char *password, char *role, int client_socket, str
     // Check if the user is already registered
     for(int i = 0; i < registered_users_count; i++){
         if(strcmp(username, registered_users[i].username) == 0){
-            sprintf(response, "REJECTED, USER %s ALREADY REGISTERED\n", username);
+            sprintf(response, "REJECTED, USER %s ALREADY REGISTERED\n\n", username);
             sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
@@ -50,7 +48,7 @@ void add_user(char *username, char *password, char *role, int client_socket, str
 
     // Check if the maximum number of registered users has been reached
     if(registered_users_count == MAX_REGISTERED_USERS){
-        sprintf(response, "REJECTED, MAXIMUM NUMBER OF REGISTERED USERS REACHED\n");
+        sprintf(response, "REJECTED, MAXIMUM NUMBER OF REGISTERED USERS REACHED\n\n");
         sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
         return;
     }
@@ -66,7 +64,7 @@ void add_user(char *username, char *password, char *role, int client_socket, str
     fprintf(config_file, "\n%s;%s;%s", username, password, role);
     fclose(config_file);
     
-    sprintf(response, "USER %s REGISTERED as %s\n", username, role);
+    sprintf(response, "USER %s REGISTERED as %s\n\n", username, role);
     sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
 }
 
@@ -99,35 +97,32 @@ void remove_user(char *username, int client_socket, struct sockaddr_in client_ad
             }
             fclose(config_file);
 
-            sprintf(response, "USER %s REMOVED\n", username);
+            sprintf(response, "USER %s REMOVED\n\n", username);
             sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
     }
 
-    sprintf(response, "REJECTED, USER %s NOT FOUND\n", username);
+    sprintf(response, "REJECTED, USER %s NOT FOUND\n\n", username);
     sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
 }
 
 // LIST
 void list_users(int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
     char response[BUFLEN + (registered_users_count * 1000)];
-    // sprintf(response, "Received request to list users\n");
-    // sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
 
     // Send the list of registered users to the client
-    sprintf(response, "\n--REGISTERED USERS--\n\n");
+    sprintf(response, "\033[H\033[J\n--REGISTERED USERS--\n\n");
     for(int i = 0; i < registered_users_count; i++){
         sprintf(response + strlen(response), "-> Username: %s\n   Password: %s\n   Role: %s\n\n", registered_users[i].username, registered_users[i].password, registered_users[i].role);
     }
+
     sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
 }
 
 // // QUIT_SERVER
 // void shutdown_server(int client_socket, struct sockaddr_in client_address, socklen_t client_address_len){
-//    // char response[BUFLEN];
+//     // char response[BUFLEN];
 //     // sprintf(response, "Received request to shutdown server\n");
 //     // sendto(client_socket, response, strlen(response) + 1, 0, (struct sockaddr*) &client_address, client_address_len);
-
-
 // }
