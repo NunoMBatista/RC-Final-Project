@@ -351,8 +351,6 @@ void create_class(char *class_name, int capacity, int client_socket){
 // SEND <class_name> <message>
 void send_message(char *class_name, char *message, int client_socket){
     char response[BUFLEN];
-    // sprintf(response, "Received request to send message %s to class %s\n", message, class_name);
-    // write(client_socket, response, strlen(response) + 1);
 
     #ifdef DEBUG
     printf("DEBUG# Sending message to class %s...\n", class_name);

@@ -659,9 +659,12 @@ int read_configuration_file(char* file_name){
 
     // Read the file line by line
     while(fgets(buffer, BUFLEN, file) != NULL){
+        char original_buffer[BUFLEN];
+        strcpy(original_buffer, buffer);
+
         char* token = strtok(buffer, ";"); // Split the line by the ';' character
-        if(token == NULL){ // Skip empty lines
-            printf("Empty line in configuration file\n");
+        if(token == NULL || strchr(token, ' ') != NULL){ // Skip lines with spaces
+            printf("Line contains spaces in configuration file, line %s\n", original_buffer);
             continue;
         }
 
@@ -669,16 +672,16 @@ int read_configuration_file(char* file_name){
         strcpy(new_user->username, token);
 
         token = strtok(NULL, ";");
-        if(token == NULL){
-            printf("Missing password in configuration file line %s\n", buffer);
-            free(new_user); // Skip lines with missing password
+        if(token == NULL || strchr(token, ' ') != NULL){
+            printf("Password contains spaces in configuration file, line %s\n", original_buffer);
+            free(new_user); // Skip lines with spaces in password
             continue;
         }
         strcpy(new_user->password, token);
 
         token = strtok(NULL, ";");
-        if(token == NULL){ // Skip lines with missing role
-            printf("Missing role in configuration file line %s\n", buffer);
+        if(token == NULL || strchr(token, ' ') != NULL){ // Skip lines with spaces in role
+            printf("Role contains spaces in configuration file, line %s\n", original_buffer);
             free(new_user);
             continue;
         }
@@ -686,7 +689,7 @@ int read_configuration_file(char* file_name){
         token[strcspn(token, "\n")] = 0; // Remove the newline character from the end of the string
         // Check if the role is valid
         if(strcmp(token, "administrador") != 0 && strcmp(token, "aluno") != 0 && strcmp(token, "professor") != 0){
-            printf("Invalid role in configuration file line %s\n", buffer);
+            printf("Invalid role in configuration file, line %s\n", original_buffer);
             free(new_user);
             continue;
         }
