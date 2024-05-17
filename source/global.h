@@ -2,6 +2,7 @@
 #define GLOBAL_H
 
 #include <semaphore.h>
+#include <netinet/in.h>
 
 #define BUFLEN 1024
 #define MAX_PASSWORD_LEN 50

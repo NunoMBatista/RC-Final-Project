@@ -21,7 +21,6 @@ void *receive_multicast_messages(void *multicast_address);
 void display_message_in_box(char *message);
 char* repeat_char(char c, int length);
 void handle_sigint(int sig);
-void thread_exit_handler(void *multicast_address);
 
 // Socket file descriptor
 int current_subscribed_classes = 0;
@@ -34,18 +33,21 @@ char multicast_ips[MAX_SUBSCRIBED_CLASSES][16];
 //pthread_t multicast_threads[MAX_SUBSCRIBED_CLASSES];
 pthread_t class_threads[MAX_SUBSCRIBED_CLASSES];
 
+struct ip_mreq multicast_groups[MAX_SUBSCRIBED_CLASSES];
+int multicast_sockets[MAX_SUBSCRIBED_CLASSES];
+
 int main(int argc, char *argv[]){
     // Clear the screen
     printf("\033[H\033[J");
 
     signal(SIGINT, handle_sigint);
+
     // Server's ip address
     char endServer[100]; 
     // Server's address structure containing IP and port
     struct sockaddr_in server_address;
     // Host entry structure containing server's name and IP address
     struct hostent *hostPtr;
-
 
     // Check if the number of arguments is correct
     if(argc != 3){
@@ -55,9 +57,9 @@ int main(int argc, char *argv[]){
 
     // Check port validity
     int PORTO_TURMAS = atoi(argv[2]);
-    // Ports below 1024 are reserved for system services and ports above 65535 are invalid
-    if(PORTO_TURMAS < 1024 || PORTO_TURMAS > 65535){
-        printf("<Invalid port>\n[Port must be integers between 1024 and 65535]\n");
+    // Ports below 1024 are reserved for system services and ports above 4999 are invalid
+    if(PORTO_TURMAS < 1024 || PORTO_TURMAS >= FIRST_MULTICAST_PORT){
+        printf("<Invalid port>\n[Port must be integers between 1024 and 4999]\n");
         return 1;
     }
 
@@ -88,14 +90,14 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    char message_sent[BUFLEN];
-    char message_received[BUFLEN];
+    char message_sent[BUFLEN]; // Buffer to store the message sent to the server
+    char message_received[BUFLEN]; // Buffer to store the message received from the server
 
-    int bytes_received;
+    int bytes_received; // Number of bytes received from the server
    
-    char console_string[BUFLEN]; // Character to be displayed in the console
+    char console_string[BUFLEN]; // String always displayed on the console
     strcpy(console_string, LOGIN);
-    strcat(console_string, "\n\n\n> ");
+    strcat(console_string, "\n\n\n\n> ");
 
     while(1){
         // Clear the message_received and message_sent buffers
@@ -109,13 +111,11 @@ int main(int argc, char *argv[]){
         if(logged_in == 0){
             if(strcmp(message_received, "OK\nLOGGED IN AS STUDENT\n") == 0){
                 logged_in = 1;
-                //console_string = "(student) $ ";
                 strcpy(console_string, STUDENT);
                 strcat(console_string, "\n\n\n(student) $ ");
             }
             else if(strcmp(message_received, "OK\nLOGGED IN AS PROFESSOR\n") == 0){
                 logged_in = 2;
-                //console_string = "(professor) $ ";
                 strcpy(console_string, PROFESSOR);
                 strcat(console_string, "\n\n\n(professor) $ ");
             }
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]){
             token[strlen(token) - 2] = '\0'; // -2 to account the newline and the '<'
             // Join the multicast group
             int multicast_socket = join_multicast_group(token);
-            printf("       -> Joined multicast group %s <-\n", token);
+            printf("\n\033[1;33m       -> Joined multicast group %s <-\033[0m", token);
 
             // Create a thread to receive multicast messages
             pthread_create(&class_threads[current_subscribed_classes - 1], NULL, receive_multicast_messages, (void*) &multicast_socket);
@@ -147,12 +147,7 @@ int main(int argc, char *argv[]){
         // Get user input and send it to the server
 
         printf("\n%s", console_string);        
-        
-
-
-
         fgets(message_sent, BUFLEN - 1, stdin);
-
 
         // Clear the screen
         printf("\033[0m \033[H\033[J");
@@ -191,11 +186,7 @@ int join_multicast_group(char *multicast_address){
     multicast_address_struct.sin_family = AF_INET; // IPv4
     multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
     multicast_address_struct.sin_port = htons(FIRST_MULTICAST_PORT + multicast_address_int % 1000); // Port
-
-    //multicast_address_struct.sin_port = htons(last_assigned_port); // Port
     
-    //last_assigned_port++; // Increment last_assigned_port for the next multicast group
-
     // Bind the socket to the multicast address
     if(bind(sockfd, (struct sockaddr*)&multicast_address_struct, sizeof(multicast_address_struct)) < 0){
         perror("<Bind failed>\n");
@@ -215,7 +206,9 @@ int join_multicast_group(char *multicast_address){
         exit(1);
     } 
 
-    //multicast_ips[current_subscribed_classes] = multicast_address;
+    multicast_groups[current_subscribed_classes] = multicast_group;
+    multicast_sockets[current_subscribed_classes] = sockfd;
+;
     strcpy(multicast_ips[current_subscribed_classes], multicast_address);
     current_subscribed_classes++;
 
@@ -255,14 +248,7 @@ void *receive_multicast_messages(void *multicast_address){
             printf("(professor) $ ");
         }
     }
-
-    if(setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &multicast_address, sizeof(multicast_address)) < 0){
-        perror("Failed to drop multicast group\n");
-        close(sockfd);
-        return NULL;
-    }
-    close(sockfd);
-
+    
     return NULL;
 }
 
@@ -308,10 +294,23 @@ void handle_sigint(int sig){
         for(int i = 0; i < current_subscribed_classes; i++){
             pthread_cancel(class_threads[i]);
             pthread_join(class_threads[i], NULL);
-            printf("\n       -> Left multicast group %s <-\n", multicast_ips[i]);
+        
+            if(setsockopt(multicast_sockets[i], IPPROTO_IP, IP_DROP_MEMBERSHIP, &multicast_groups[i], sizeof(multicast_groups[i])) < 0){
+                perror("Failed to drop multicast group\n");
+            }
+            else{
+                printf("\n       -> Left multicast group %s <-\n", multicast_ips[i]);
+            }
+
+            if(close(multicast_sockets[i]) < 0){
+                perror("Failed to close multicast socket\n");
+            }
         }
-        printf("\n\t\033[31m      SHUTTING DOWN CLIENT\n\033[0m");
-        close(client_socket);
+
+        printf("\n\t\033[31m       SHUTTING DOWN CLIENT\n\033[0m");
+        if(close(client_socket) < 0){
+            perror("Failed to close client socket\n");
+        }
         exit(0);
     }
 }

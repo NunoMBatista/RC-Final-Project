@@ -128,7 +128,7 @@ void list_classes(int client_socket){
     #endif
 }
 
-// Student Only
+// ------------------------- Student Only -------------------------
 
 // LIST_SUBSCRIBED
 void list_subscribed(int client_socket){
@@ -165,7 +165,7 @@ void list_subscribed(int client_socket){
     #endif
 }
 
-// SUBSCRIBE <class_name>
+// SUBSCRIBE_CLASS <class_name>
 void subscribe_class(char *class_name, int client_socket, User *user_info){
     char response[BUFLEN];
     // sprintf(response, "Received request to subscribe to class %s\n", class_name);
@@ -189,7 +189,7 @@ void subscribe_class(char *class_name, int client_socket, User *user_info){
             #endif
             for(int j = 0; j < classes_shm->classes[i].enrolled; j++){
                 if(strcmp(user_info->username, classes_shm->classes[i].subscribed_users[j].username) == 0){
-                    sprintf(response, "REJECTED, student is already subscribed to class %s\n", class_name);
+                    sprintf(response, "REJECTED, student is already subscribed to class %s\n\n", class_name);
                     sem_post(classes_sem);
                     write(client_socket, response, strlen(response) + 1);
                     return;
@@ -201,7 +201,7 @@ void subscribe_class(char *class_name, int client_socket, User *user_info){
             printf("DEBUG# Checking if class is full...\n");
             #endif
             if(classes_shm->classes[i].enrolled >= classes_shm->classes[i].capacity){
-                sprintf(response, "REJECTED, class %s is full\n", class_name);
+                sprintf(response, "REJECTED, class %s is full\n\n", class_name);
                 sem_post(classes_sem);
                 write(client_socket, response, strlen(response) + 1);
                 return;
@@ -231,12 +231,12 @@ void subscribe_class(char *class_name, int client_socket, User *user_info){
     printf("DEBUG# Class %s does not exist\n", class_name);
     #endif
     sem_post(classes_sem);
-    sprintf(response, "REJECTED, class %s does not exist\n", class_name);
+    sprintf(response, "REJECTED, class %s does not exist\n\n", class_name);
     write(client_socket, response, strlen(response) + 1);
     return;
 }
 
-// Professor Only
+// ------------------------ Professor Only -------------------------
 
 // CREATE_CLASS <class_name> <capacity>
 void create_class(char *class_name, int capacity, int client_socket){
@@ -245,18 +245,10 @@ void create_class(char *class_name, int capacity, int client_socket){
     #ifdef DEBUG
     printf("DEBUG# Creating class %s with capacity %d...\n", class_name, capacity);
     #endif
-
-    // sprintf(response, "Received request to create class %s with capacity %d\n", class_name, capacity);
-    // write(client_socket, response, strlen(response) + 1);
-
+    
     // Get the next available multicast address
     char *multicast_address = next_available_multicast_ip();
-
-    // Access shared memory to find the last assigned multicast port
-    // sem_wait(classes_sem);
-    // int last_assigned_multicast_port = classes_shm->classes_count + FIRST_MULTICAST_PORT;
-    // sem_post(classes_sem);
-
+    
     // Lock semaphore
     #ifdef DEBUG
     printf("DEBUG# Accessing shared memory, lock semaphore...\n");
@@ -276,13 +268,12 @@ void create_class(char *class_name, int capacity, int client_socket){
         }
     }
 
-
     // Check if the class limit has been reached
     #ifdef DEBUG
     printf("DEBUG# Checking if class limit has been reached...\n");
     #endif   
     if(classes_shm->classes_count >= MAX_CLASSES){
-        sprintf(response, "REJECTED, maximum number of classes reached\n");
+        sprintf(response, "REJECTED, maximum number of classes reached\n\n");
         sem_post(classes_sem);
         write(client_socket, response, strlen(response) + 1);
         return;
@@ -293,7 +284,7 @@ void create_class(char *class_name, int capacity, int client_socket){
     printf("DEBUG# Start setting up multicast group...\n");
     #endif
     if(multicast_address == NULL){
-        sprintf(response, "REJECTED, maximum number of classes reached\n");
+        sprintf(response, "REJECTED, maximum number of classes reached\n\n");
         sem_post(classes_sem);
         write(client_socket, response, strlen(response) + 1);
         return;
@@ -305,7 +296,7 @@ void create_class(char *class_name, int capacity, int client_socket){
     #endif
     int multicast_socket = socket(AF_INET, SOCK_DGRAM, 0);
     if(multicast_socket < 0){
-        printf("<Socket creation failed>\n");
+        perror("<Socket creation failed>\n");
         sem_post(classes_sem);
         exit(1);
     }
@@ -315,7 +306,6 @@ void create_class(char *class_name, int capacity, int client_socket){
     printf("DEBUG# Setting multicast address...\n");
     #endif
 
-
     unsigned long int address = inet_addr(multicast_address);
 
     struct sockaddr_in multicast_address_struct;
@@ -324,27 +314,6 @@ void create_class(char *class_name, int capacity, int client_socket){
     multicast_address_struct.sin_addr.s_addr = address; // Multicast address
     multicast_address_struct.sin_port = htons(FIRST_MULTICAST_PORT + address % 1000); // Port
     
-    
-    //multicast_address_struct.sin_addr.s_addr = htonl(INADDR_ANY); // Multicast address
-    //multicast_address_struct.sin_port = htons(last_assigned_multicast_port); // Port
-
-
-    // Set the multicast group to join
-    // #ifdef DEBUG
-    // printf("DEBUG# Joining multicast group...\n");
-    // #endif
-    // struct ip_mreq multicast_group;
-    // multicast_group.imr_multiaddr.s_addr = inet_addr(multicast_address);
-    // multicast_group.imr_interface.s_addr = htonl(INADDR_ANY);
-
-    // // Join the multicast group
-    // if(setsockopt(multicast_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &multicast_group, sizeof(multicast_group)) < 0){
-    //     printf("<Join failed>\n");
-    //     close(multicast_socket);
-    //     sem_post(classes_sem);
-    //     exit(1);
-    // }
-
     int ttl = 5;
     if(setsockopt(multicast_socket, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0){
         printf("<Set TTL failed>\n");

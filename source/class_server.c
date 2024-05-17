@@ -340,11 +340,8 @@ void* handle_udp(void *udp_port_ptr){
         printf("DEBUG# Admin message from %s:%d - %s\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port), buffer); 
         #endif
 
-        // sendto(udp_socket, "Message received\n", 17, 0, (struct sockaddr*) &client_address, client_address_len); // Send a message to the client to confirm the message was received
-
         // Interpret the command
         interpret_admin_command(buffer, udp_socket, client_address, client_address_len);
-        // devolver ao cliente udp uma mensagem de log in, caso seja admin, deve poder aceder ao resto das funções (talvez isto tenha de ser feito fora do loop)
     }
 
     // Close the socket
@@ -420,7 +417,7 @@ void interpret_client_command(char* command, int client_socket, User **user_info
         return;
     }
 
-    if(strcmp("SUBSCRIBE", token) == 0){
+    if(strcmp("SUBSCRIBE_CLASS", token) == 0){
         #ifdef DEBUG
         printf("DEBUG# Received subscribe command\n");
         printf("DEBUG# Checking parameters...\n");
@@ -535,18 +532,18 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
 
     char *token = strtok(command, " ");
     if(token == NULL){
-        sendto(client_socket, "\033[1;31m<Invalid command>\n\033[0m", 30, 0, (struct sockaddr*) &client_address, client_address_len);
+        sendto(client_socket, "\033[1;31m<Invalid command>\n\n\033[0m", 30, 0, (struct sockaddr*) &client_address, client_address_len);
         return;
     }
 
     if(strcmp("LOGIN", token) == 0){
         // Check if the admin is already logged in
         if(admin_logged_in == 1){
-            sendto(client_socket, "\033[1;31m<Already logged in as admin>\n\033[0m", 41, 0, (struct sockaddr*) &client_address, client_address_len);
+            sendto(client_socket, "\033[1;31m<Already logged in as admin>\n\n\033[0m", 41, 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
 
-        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: LOGIN <username> <password>\n\n";
+        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: LOGIN <username> <password>\n";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
@@ -570,7 +567,7 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
     }
 
     if(strcmp("ADD_USER", token) == 0){
-        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: ADD_USER <username> <password> <role>\n\n\033[0m";
+        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: ADD_USER <username> <password> <role>\n\033[0m";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         char* password = strtok(NULL, " ");
@@ -581,23 +578,18 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
             sendto(client_socket, error_message, strlen(error_message), 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
-        printf("fase 1\n");
 
         // Check parameter length
         if(strlen(username) > MAX_USERNAME_LEN || strlen(password) > MAX_PASSWORD_LEN || strlen(role) > MAX_ROLE_LEN){
-            sendto(client_socket, "\033[1;31m<Invalid command>\nUsername, password and role must have less than 50 characters\n\n\033[0m", 93, 0, (struct sockaddr*) &client_address, client_address_len);
+            sendto(client_socket, "\033[1;31m<Invalid command>\nUsername, password and role must have less than 50 characters\n\033[0m", 92, 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
-
-        printf("fase 2\n");
         
         // Check role validity
         if(strcmp(role, "administrador") != 0 && strcmp(role, "aluno") != 0 && strcmp(role, "professor") != 0){
-            sendto(client_socket, "\033[1;31m<Invalid command>\nRole must be 'administrador', 'aluno' or 'professor'\n\n\033[0m", 84, 0, (struct sockaddr*) &client_address, client_address_len);
+            sendto(client_socket, "\033[1;31m<Invalid command>\nRole must be 'administrador', 'aluno' or 'professor'\n\033[0m", 83, 0, (struct sockaddr*) &client_address, client_address_len);
             return;
         }
-
-        printf("fase 3\n");
 
         // Check if there are no more arguments
         if(strtok(NULL, " ") != NULL){
@@ -609,7 +601,7 @@ void interpret_admin_command(char* command, int client_socket, struct sockaddr_i
     }
 
     if(strcmp("DEL", token) == 0){
-        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: DEL <username>\n\n\033[0m";
+        char *error_message = "\033[1;31m<Invalid command>\nCorrect Usage: DEL <username>\n\033[0m";
         // Check if the command has the correct number of arguments
         char* username = strtok(NULL, " ");
         if(username == NULL){
