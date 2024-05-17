@@ -81,7 +81,7 @@ int main(int argc, char *argv[]){
 
         printf("\033[1;33m");
         // Get user input and send it to the server
-        printf(console_string);
+        printf("%s", console_string);
 
         fgets(message_sent, BUFLEN - 1, stdin);
         message_sent[strlen(message_sent) - 1] = '\0';
